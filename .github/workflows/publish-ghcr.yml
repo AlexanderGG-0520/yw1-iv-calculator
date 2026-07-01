@@ -11,8 +11,6 @@ on:
 permissions:
   contents: read
   packages: write
-  attestations: write
-  id-token: write
 
 concurrency:
   group: publish-ghcr-${{ github.ref }}
@@ -72,7 +70,6 @@ jobs:
             type=sha,prefix=sha-
 
       - name: Build and push Docker image
-        id: push
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -82,10 +79,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Generate artifact attestation
-        uses: actions/attest@v4
-        with:
-          subject-name: ${{ steps.image.outputs.name }}
-          subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: true
