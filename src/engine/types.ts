@@ -40,6 +40,7 @@ export interface SearchInput {
   level: number;
   observed: StatBlock;
   personalityMode: PersonalityMode;
+  personalityBonus?: StatBlock;
   b2Mode: B2Mode;
   scorePreset: ScorePreset;
   maxResults: number;
@@ -82,6 +83,7 @@ export interface StatCalculationInput {
   ivB1: number;
   ivB2: number;
   personalityMode: PersonalityMode;
+  personalityBonus?: StatBlock;
 }
 
 export interface StatCalculationEngine {
