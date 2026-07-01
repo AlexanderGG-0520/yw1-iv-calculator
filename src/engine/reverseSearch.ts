@@ -1,4 +1,4 @@
-import { provisionalLinearEngine } from "./calculationEngine";
+import { togenyanPortedEngine } from "./calculationEngine";
 import { b2ValuesForStat } from "./patterns";
 import { scoreResult } from "./scoring";
 import {
@@ -24,13 +24,14 @@ const emptyStatBlock = (): StatBlock => ({
 export function buildCandidatesForStat(
   input: SearchInput,
   stat: StatKey,
-  engine: StatCalculationEngine = provisionalLinearEngine,
+  engine: StatCalculationEngine = togenyanPortedEngine,
 ): StatCandidate[] {
   const species = getYokaiSpecies(input.speciesId);
   const candidates: StatCandidate[] = [];
   const b2Values = b2ValuesForStat(input.b2Mode);
+  const ivAValues = engine.ivAValuesForStat?.(species, stat) ?? Array.from({ length: 32 }, (_, index) => index);
 
-  for (let ivA = 0; ivA <= 31; ivA += 1) {
+  for (const ivA of ivAValues) {
     for (let ivB1 = 0; ivB1 <= 10; ivB1 += 1) {
       for (const ivB2 of b2Values) {
         const calculated = engine.calculate({
@@ -55,7 +56,7 @@ export function buildCandidatesForStat(
 
 export function reverseSearch(
   input: SearchInput,
-  engine: StatCalculationEngine = provisionalLinearEngine,
+  engine: StatCalculationEngine = togenyanPortedEngine,
 ): SearchResponse {
   const maxResults = Math.max(1, Math.min(input.maxResults, 500));
   const perStatCandidates = Object.fromEntries(

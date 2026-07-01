@@ -3,7 +3,7 @@ import { ArrowDownUp, Search } from "lucide-react";
 import type { WorkerResponse } from "./workers/reverseSearch.worker";
 import { STAT_KEYS, type B2Mode, type PersonalityMode, type ReverseResult, type ScorePreset, type SearchInput, type SearchResponse, type StatBlock, type StatKey } from "./engine/types";
 import { YOKAI } from "./engine/yokaiData";
-import { provisionalLinearEngine } from "./engine/calculationEngine";
+import { togenyanPortedEngine } from "./engine/calculationEngine";
 
 type SortKey = "score" | StatKey;
 type SortDirection = "asc" | "desc";
@@ -23,6 +23,8 @@ const statLabel: Record<StatKey, string> = {
   defense: "Defense",
   speed: "Speed",
 };
+
+const formulaStatusLabel = togenyanPortedEngine.formulaStatusKind.replaceAll("_", " ");
 
 function App() {
   const workerRef = useRef<Worker | null>(null);
@@ -107,7 +109,10 @@ function App() {
         <header className="topbar">
           <div>
             <h1>Yo-kai Watch 1 IV Reverse Calculator</h1>
-            <p>{provisionalLinearEngine.formulaStatus}</p>
+            <p>
+              <span className={`status-badge status-${togenyanPortedEngine.formulaStatusKind}`}>{formulaStatusLabel}</span>
+              {togenyanPortedEngine.formulaStatus}
+            </p>
           </div>
           <button type="button" onClick={runSearch} disabled={isSearching}>
             <Search size={18} aria-hidden="true" />
@@ -135,11 +140,18 @@ function App() {
           <label>
             Personality bonus
             <select value={personalityMode} onChange={(event) => setPersonalityMode(event.target.value as PersonalityMode)}>
-              <option value="none">None</option>
-              <option value="physical_attacker">Physical attacker</option>
-              <option value="magic_attacker">Magic attacker</option>
-              <option value="wall">Wall</option>
-              <option value="speed">Speed</option>
+              <option value="none">なし</option>
+              <option value="short_tempered">短気 (+HP/+Strength)</option>
+              <option value="physical_attacker">荒くれ (+Strength)</option>
+              <option value="calm">れいせい (+Spirit/+Speed)</option>
+              <option value="magic_attacker">ずのう的 (+Spirit)</option>
+              <option value="careful">しんちょう (+Spirit/+Defense)</option>
+              <option value="wall">動じない (+Defense)</option>
+              <option value="kind">やさしい (+HP/+Spirit)</option>
+              <option value="compassionate">情け深い (+HP)</option>
+              <option value="nasty">いやらしい (+Strength/+Speed)</option>
+              <option value="speed">非道 (+Speed)</option>
+              <option value="devoted">協力的 (+HP/+Speed)</option>
             </select>
           </label>
 

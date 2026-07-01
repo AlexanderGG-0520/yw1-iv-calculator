@@ -70,6 +70,25 @@ p {
   max-width: 74rem;
 }
 
+.status-badge {
+  background: #e8f2ef;
+  border: 1px solid #accdc5;
+  border-radius: 999px;
+  color: #225e54;
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-right: 0.5rem;
+  padding: 0.18rem 0.5rem;
+  text-transform: uppercase;
+}
+
+.status-provisional {
+  background: #fff1f1;
+  border-color: #efb5b5;
+  color: #8f2424;
+}
+
 .controls,
 .stat-grid,
 .summary {

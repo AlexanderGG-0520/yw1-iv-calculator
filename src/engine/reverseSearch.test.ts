@@ -6,6 +6,7 @@ const fixtureEngine: StatCalculationEngine = {
   id: "fixture",
   label: "Fixture",
   formulaStatus: "fixture",
+  formulaStatusKind: "provisional",
   calculate(input: StatCalculationInput) {
     return input.ivA + input.ivB1 + input.ivB2;
   },

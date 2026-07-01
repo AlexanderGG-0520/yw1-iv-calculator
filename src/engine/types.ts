@@ -8,8 +8,15 @@ export type B2Mode = "direct" | "evolved_once" | "unknown";
 
 export type PersonalityMode =
   | "none"
+  | "short_tempered"
   | "physical_attacker"
   | "magic_attacker"
+  | "calm"
+  | "careful"
+  | "kind"
+  | "compassionate"
+  | "nasty"
+  | "devoted"
   | "wall"
   | "speed";
 
@@ -18,8 +25,13 @@ export type ScorePreset = "physical_attacker" | "magic_attacker" | "wall";
 export interface YokaiSpecies {
   id: string;
   name: string;
+  sourceName?: string;
+  number?: number;
   base: StatBlock;
-  levelGrowth: StatBlock;
+  growPattern: StatBlock;
+  levelGrowth?: StatBlock;
+  tribeClass?: number;
+  ivAAllowed?: Record<StatKey, boolean>;
 }
 
 export interface SearchInput {
@@ -75,5 +87,7 @@ export interface StatCalculationEngine {
   id: string;
   label: string;
   formulaStatus: string;
+  formulaStatusKind: "verified" | "ported_from_togenyan_source" | "partially_verified" | "provisional";
   calculate(input: StatCalculationInput): number;
+  ivAValuesForStat?(species: YokaiSpecies, stat: StatKey): Iterable<number>;
 }
