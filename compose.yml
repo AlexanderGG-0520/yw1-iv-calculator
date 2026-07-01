@@ -3,6 +3,6 @@ services:
     build:
       context: .
     ports:
-      - "4173:4173"
+      - "8080:80"
     profiles:
       - local
