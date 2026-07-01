@@ -1,0 +1,8 @@
+services:
+  ykw1-iv-calculator:
+    build:
+      context: .
+    ports:
+      - "4173:4173"
+    profiles:
+      - local
