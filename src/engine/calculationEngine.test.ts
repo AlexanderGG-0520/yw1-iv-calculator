@@ -10,6 +10,7 @@ function calculateBlock({
   ivB1,
   ivB2,
   personalityMode,
+  personalityBonus,
 }: {
   speciesId: string;
   level: number;
@@ -17,6 +18,7 @@ function calculateBlock({
   ivB1: StatBlock;
   ivB2: StatBlock;
   personalityMode: PersonalityMode;
+  personalityBonus?: StatBlock;
 }): StatBlock {
   const species = getYokaiSpecies(speciesId);
   return Object.fromEntries(
@@ -30,6 +32,7 @@ function calculateBlock({
         ivB1: ivB1[stat],
         ivB2: ivB2[stat],
         personalityMode,
+        personalityBonus,
       }),
     ]),
   ) as StatBlock;
@@ -60,6 +63,45 @@ describe("togenyan ported engine", () => {
         personalityMode: "physical_attacker",
       }),
     ).toEqual({ hp: 337, strength: 140, spirit: 110, defense: 126, speed: 345 });
+  });
+
+  it("keeps preset personality behavior unchanged when no custom bonus is passed", () => {
+    const fixture = {
+      speciesId: "jibanyan",
+      level: 50,
+      ivA: { hp: 0, strength: 0, spirit: 0, defense: 0, speed: 31 },
+      ivB1: { hp: 2, strength: 2, spirit: 2, defense: 2, speed: 2 },
+      ivB2: { hp: 0, strength: 0, spirit: 0, defense: 0, speed: 0 },
+      personalityMode: "physical_attacker" as PersonalityMode,
+    };
+
+    expect(calculateBlock(fixture)).toEqual(calculateBlock({ ...fixture, personalityBonus: undefined }));
+  });
+
+  it("uses custom personality bonus values instead of preset values", () => {
+    const withoutBonus = calculateBlock({
+      speciesId: "jibanyan",
+      level: 20,
+      ivA: { hp: 0, strength: 0, spirit: 0, defense: 0, speed: 0 },
+      ivB1: { hp: 2, strength: 2, spirit: 2, defense: 2, speed: 2 },
+      ivB2: { hp: 0, strength: 0, spirit: 0, defense: 0, speed: 0 },
+      personalityMode: "none",
+    });
+    const withCustomBonus = calculateBlock({
+      speciesId: "jibanyan",
+      level: 20,
+      ivA: { hp: 0, strength: 0, spirit: 0, defense: 0, speed: 0 },
+      ivB1: { hp: 2, strength: 2, spirit: 2, defense: 2, speed: 2 },
+      ivB2: { hp: 0, strength: 0, spirit: 0, defense: 0, speed: 0 },
+      personalityMode: "none",
+      personalityBonus: { hp: 20, strength: 0, spirit: 0, defense: 0, speed: 0 },
+    });
+
+    expect(withCustomBonus.hp).toBeGreaterThan(withoutBonus.hp);
+    expect(withCustomBonus.strength).toBe(withoutBonus.strength);
+    expect(withCustomBonus.spirit).toBe(withoutBonus.spirit);
+    expect(withCustomBonus.defense).toBe(withoutBonus.defense);
+    expect(withCustomBonus.speed).toBe(withoutBonus.speed);
   });
 
   it("matches a source-derived mixed level 50 fixture", () => {

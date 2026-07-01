@@ -42,6 +42,7 @@ export function buildCandidatesForStat(
           ivB1,
           ivB2,
           personalityMode: input.personalityMode,
+          personalityBonus: input.personalityBonus,
         });
 
         if (calculated === input.observed[stat]) {

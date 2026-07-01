@@ -11,7 +11,7 @@ import type { PersonalityMode, StatBlock, StatCalculationEngine, StatCalculation
   Source inspected: https://togenyanweb.appspot.com/Yokai/yw1/js/calc.js
 */
 
-const sourceCharacteristicBonus: Record<PersonalityMode, StatBlock> = {
+export const sourceCharacteristicBonus: Record<PersonalityMode, StatBlock> = {
   none: { hp: 0, strength: 0, spirit: 0, defense: 0, speed: 0 },
   short_tempered: { hp: 10, strength: 10, spirit: 0, defense: 0, speed: 0 },
   physical_attacker: { hp: 0, strength: 20, spirit: 0, defense: 0, speed: 0 },
@@ -140,7 +140,7 @@ export const togenyanPortedEngine: StatCalculationEngine = {
     const { species, stat, level, ivA, ivB1, ivB2, personalityMode } = input;
     const growPattern = species.growPattern[stat];
     const baseStat = species.base[stat];
-    const characteristicBonus = sourceCharacteristicBonus[personalityMode][stat];
+    const characteristicBonus = (input.personalityBonus ?? sourceCharacteristicBonus[personalityMode])[stat];
 
     return calculateTogenyanStatus({
       growPattern,
@@ -180,7 +180,7 @@ export const provisionalLinearEngine: StatCalculationEngine = {
     const base = species.base[stat];
     const growth = (species.levelGrowth?.[stat] ?? 1) * Math.max(0, level - 1);
     const ivContribution = Math.floor(ivA / 4) + ivB1 + ivB2;
-    const multiplier = personalityMultiplier[personalityMode]?.[stat] ?? 1;
+    const multiplier = input.personalityBonus ? 1 + input.personalityBonus[stat] / 400 : (personalityMultiplier[personalityMode]?.[stat] ?? 1);
 
     return Math.floor((base + growth + ivContribution) * multiplier);
   },
