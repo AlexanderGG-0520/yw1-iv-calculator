@@ -29,6 +29,7 @@ const formulaStatusLabel = togenyanPortedEngine.formulaStatusKind.replaceAll("_"
 function App() {
   const workerRef = useRef<Worker | null>(null);
   const [speciesId, setSpeciesId] = useState(YOKAI[0].id);
+  const [yokaiFilter, setYokaiFilter] = useState("");
   const [level, setLevel] = useState(20);
   const [observed, setObserved] = useState<StatBlock>(defaultObserved);
   const [personalityMode, setPersonalityMode] = useState<PersonalityMode>("none");
@@ -49,6 +50,24 @@ function App() {
       return (leftValue - rightValue) * direction;
     });
   }, [response, sortDirection, sortKey]);
+
+  const filteredYokai = useMemo(() => {
+    const query = yokaiFilter.trim().toLowerCase();
+    if (!query) {
+      return YOKAI;
+    }
+
+    const matches = YOKAI.filter((species) =>
+      [species.name, species.sourceName, species.sourceFurigana, species.id, species.number?.toString()]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(query)),
+    );
+    const selected = YOKAI.find((species) => species.id === speciesId);
+    if (selected && !matches.some((species) => species.id === selected.id)) {
+      return [selected, ...matches];
+    }
+    return matches;
+  }, [speciesId, yokaiFilter]);
 
   function updateObserved(stat: StatKey, value: number) {
     setObserved((current) => ({ ...current, [stat]: value }));
@@ -122,10 +141,21 @@ function App() {
 
         <section className="controls" aria-label="Search controls">
           <label>
+            Yo-kai search
+            <input
+              type="search"
+              value={yokaiFilter}
+              onChange={(event) => setYokaiFilter(event.target.value)}
+              placeholder="Name, ID, or number"
+            />
+          </label>
+
+          <label>
             Yo-kai
             <select value={speciesId} onChange={(event) => setSpeciesId(event.target.value)}>
-              {YOKAI.map((species) => (
+              {filteredYokai.map((species) => (
                 <option key={species.id} value={species.id}>
+                  {species.number ? `${species.number}. ` : ""}
                   {species.name}
                 </option>
               ))}

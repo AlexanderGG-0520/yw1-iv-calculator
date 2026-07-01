@@ -134,7 +134,7 @@ function calculateTogenyanStatus({
 export const togenyanPortedEngine: StatCalculationEngine = {
   id: "togenyan-ported",
   label: "とげにゃんWeb port",
-  formulaStatus: "ported from togenyan source: formula and partial species data are MIT-attributed; no independent in-game fixture verification yet",
+  formulaStatus: "ported from togenyan source: formula and full species data are MIT-attributed; no independent in-game fixture verification yet",
   formulaStatusKind: "ported_from_togenyan_source",
   calculate(input: StatCalculationInput): number {
     const { species, stat, level, ivA, ivB1, ivB2, personalityMode } = input;

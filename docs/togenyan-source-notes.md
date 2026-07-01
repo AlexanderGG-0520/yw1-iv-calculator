@@ -40,7 +40,15 @@ The local port preserves that attribution in files that use source-derived formu
 
 The local `togenyanPortedEngine` ports `calcStatus` from `calc.js`, including the source's `Float32Array` constants and assignment order so single-precision coercion points are preserved.
 
-The local data file currently ports only the MVP-required Yo-kai rows:
+The local data file now ports the full `yokaiData` array from the inspected `calc.js` source:
+
+- Source rows parsed: 245
+- Source numbering: contiguous `num` values from 1 through 245
+- Local exported count: `SOURCE_YOKAI_DATA_LENGTH = 245`
+- Preserved fields per row: source number, Japanese name, furigana, base stats (`bs`), growth patterns (`growPat`), class (`class`), and class-derived IV_A eligibility
+- Local IDs: existing MVP IDs were kept for compatibility; all other rows use stable ASCII `yw1-###` IDs based on source number
+
+The compatibility IDs kept from the MVP subset are:
 
 - くさなぎ
 - ブシニャン
@@ -50,6 +58,8 @@ The local data file currently ports only the MVP-required Yo-kai rows:
 - ジバニャン
 - コマさん
 - コマじろう
+
+No source rows were dropped. Boss rows with growth pattern `5` and class `0` are included because they are present in the source `yokaiData`.
 
 The source class table was ported to enforce which stat may use IV_A. The source personality/characteristic bonuses were ported into the app's personality mode choices.
 

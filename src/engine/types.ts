@@ -26,6 +26,7 @@ export interface YokaiSpecies {
   id: string;
   name: string;
   sourceName?: string;
+  sourceFurigana?: string;
   number?: number;
   base: StatBlock;
   growPattern: StatBlock;
