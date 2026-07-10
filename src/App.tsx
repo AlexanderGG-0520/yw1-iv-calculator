@@ -4,6 +4,7 @@ import { ArrowDownUp, Copy, Search } from "lucide-react";
 import type { WorkerResponse } from "./workers/reverseSearch.worker";
 import { formatCandidateJson, formatCandidateText, formatStatLine } from "./engine/copyFormat";
 import { calculateStatBlock } from "./engine/forwardCalculation";
+import { BUILT_IN_SCORE_PROFILES, formatScoreWeights, hasAnyScoreWeight, resolveScoreProfile } from "./engine/scoring";
 import { STAT_KEYS, type B2Mode, type PersonalityMode, type ReverseResult, type ScorePreset, type SearchInput, type SearchResponse, type StatBlock, type StatKey } from "./engine/types";
 import { YOKAI } from "./engine/yokaiData";
 import { sourceCharacteristicBonus, togenyanPortedEngine } from "./engine/calculationEngine";
@@ -18,6 +19,7 @@ const defaultObserved: StatBlock = { hp: 80, strength: 60, spirit: 45, defense: 
 const defaultForwardIvA: StatBlock = { hp: 0, strength: 0, spirit: 0, defense: 0, speed: 0 };
 const defaultForwardB1: StatBlock = { hp: 2, strength: 2, spirit: 2, defense: 2, speed: 2 };
 const defaultForwardB2: StatBlock = { hp: 0, strength: 0, spirit: 0, defense: 0, speed: 0 };
+const defaultCustomScoreWeights: StatBlock = { hp: 2, strength: 2, spirit: 2, defense: 2, speed: 2 };
 
 const statLabel: Record<StatKey, string> = {
   hp: "HP",
@@ -42,12 +44,6 @@ const personalityOptions: { value: PersonalityMode; label: string }[] = [
   { value: "devoted", label: "協力的 (+HP/+すばやさ)" },
 ];
 
-const scorePresetLabel: Record<ScorePreset, string> = {
-  physical_attacker: "物理アタッカー",
-  magic_attacker: "妖術アタッカー",
-  wall: "壁",
-};
-
 const formulaStatusLabel = togenyanPortedEngine.formulaStatusKind.replaceAll("_", " ");
 
 function resolvePersonality(selection: PersonalitySelection, customBonus: StatBlock) {
@@ -71,6 +67,7 @@ function App() {
   const [customBonus, setCustomBonus] = useState<StatBlock>(emptyStats);
   const [b2Mode, setB2Mode] = useState<B2Mode>("direct");
   const [scorePreset, setScorePreset] = useState<ScorePreset>("physical_attacker");
+  const [customScoreWeights, setCustomScoreWeights] = useState<StatBlock>(defaultCustomScoreWeights);
   const [response, setResponse] = useState<SearchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -88,6 +85,7 @@ function App() {
   const [forwardB2, setForwardB2] = useState<StatBlock>(defaultForwardB2);
 
   const selectedSpecies = useMemo(() => YOKAI.find((species) => species.id === speciesId) ?? YOKAI[0], [speciesId]);
+  const activeScoreProfile = useMemo(() => resolveScoreProfile(scorePreset, customScoreWeights), [customScoreWeights, scorePreset]);
 
   const sortedResults = useMemo(() => {
     const results = [...(response?.results ?? [])];
@@ -161,6 +159,7 @@ function App() {
       observed,
       b2Mode,
       scorePreset,
+      customScoreWeights,
       maxResults: 100,
       ...personality,
     };
@@ -240,12 +239,28 @@ function App() {
             <label>
               スコア
               <select value={scorePreset} onChange={(event) => setScorePreset(event.target.value as ScorePreset)}>
-                <option value="physical_attacker">{scorePresetLabel.physical_attacker}</option>
-                <option value="magic_attacker">{scorePresetLabel.magic_attacker}</option>
-                <option value="wall">{scorePresetLabel.wall}</option>
+                {BUILT_IN_SCORE_PROFILES.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.name}
+                  </option>
+                ))}
+                <option value="custom">Custom</option>
               </select>
             </label>
           </section>
+
+          <section className="score-profile-info" aria-label="評価プロファイル">
+            <p>
+              <strong>{activeScoreProfile.name}</strong>: {activeScoreProfile.description}
+            </p>
+            <p>{formatScoreWeights(activeScoreProfile.weights)}</p>
+          </section>
+          {scorePreset === "custom" ? (
+            <CustomScoreFields values={customScoreWeights} onChange={(stat, value) => updateBlock(setCustomScoreWeights, stat, value)} />
+          ) : null}
+          {scorePreset === "custom" && !hasAnyScoreWeight(customScoreWeights) ? (
+            <p className="warning">Customウェイトがすべて0のため、バランス評価でスコアを計算します。</p>
+          ) : null}
 
           {personalitySelection === "custom" ? (
             <CustomBonusFields values={customBonus} onChange={(stat, value) => updateBlock(setCustomBonus, stat, value)} />
@@ -384,6 +399,10 @@ function CustomBonusFields({ values, onChange }: { values: StatBlock; onChange: 
   return <StatInputs title="Custom性格ボーナス" values={values} onChange={onChange} />;
 }
 
+function CustomScoreFields({ values, onChange }: { values: StatBlock; onChange: (stat: StatKey, value: number) => void }) {
+  return <StatInputs title="Custom評価ウェイト" values={values} onChange={onChange} />;
+}
+
 function StatBlockLine({ label, values }: { label: string; values: StatBlock }) {
   return (
     <div className="block-line">
@@ -406,6 +425,7 @@ function ResultCards({ results, onCopy }: { results: ReverseResult[]; onCopy: (r
             <div>
               <span className="muted">スコア</span>
               <strong>{result.score.toFixed(1)}</strong>
+              <span className="muted">使用中の評価: {result.scoreProfile?.name ?? "バランス"}</span>
             </div>
             <div className="copy-actions">
               <button type="button" onClick={() => onCopy(result, "text")}>

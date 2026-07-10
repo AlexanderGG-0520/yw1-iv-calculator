@@ -1,4 +1,5 @@
-import { STAT_KEYS, type PersonalityMode, type ReverseResult, type StatBlock, type YokaiSpecies } from "./types";
+import { BALANCED_SCORE_PROFILE, formatScoreWeights } from "./scoring";
+import { STAT_KEYS, type PersonalityMode, type ReverseResult, type ScoreProfile, type StatBlock, type YokaiSpecies } from "./types";
 
 const statOrderLabel = ["HP", "ちから", "ようりょく", "まもり", "すばやさ"];
 
@@ -19,17 +20,22 @@ export function formatCandidateText({
   personalityMode,
   personalityBonus,
   result,
+  scoreProfile,
 }: {
   species: YokaiSpecies;
   level: number;
   personalityMode: PersonalityMode;
   personalityBonus?: StatBlock;
   result: ReverseResult;
+  scoreProfile?: ScoreProfile;
 }): string {
+  const activeScoreProfile = scoreProfile ?? result.scoreProfile ?? BALANCED_SCORE_PROFILE;
   return [
     `妖怪: ${species.name}`,
     `Lv: ${level}`,
     `性格ボーナス: ${formatPersonalityLabel(personalityMode, personalityBonus)}`,
+    `評価: ${activeScoreProfile.name} (${formatScoreWeights(activeScoreProfile.weights)})`,
+    `スコア: ${result.score}`,
     `IV_A: ${formatStatLine(result.ivA)}`,
     `B_1: ${formatStatLine(result.ivB1)}`,
     `B_2: ${formatStatLine(result.ivB2)}`,
@@ -43,13 +49,16 @@ export function formatCandidateJson({
   personalityMode,
   personalityBonus,
   result,
+  scoreProfile,
 }: {
   species: YokaiSpecies;
   level: number;
   personalityMode: PersonalityMode;
   personalityBonus?: StatBlock;
   result: ReverseResult;
+  scoreProfile?: ScoreProfile;
 }): string {
+  const activeScoreProfile = scoreProfile ?? result.scoreProfile ?? BALANCED_SCORE_PROFILE;
   return JSON.stringify(
     {
       yokai: species.name,
@@ -57,6 +66,11 @@ export function formatCandidateJson({
       level,
       personalityMode,
       personalityBonus,
+      scoreProfile: {
+        id: activeScoreProfile.id,
+        name: activeScoreProfile.name,
+        weights: activeScoreProfile.weights,
+      },
       score: result.score,
       ivA: result.ivA,
       b1: result.ivB1,

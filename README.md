@@ -17,7 +17,29 @@ The exact Yo-kai Watch 1 stat formula is not verified in this repository. The cu
 - Per-stat candidate generation before combination
 - Web Worker reverse search
 - Sortable result table
-- Rough scoring presets for physical attacker, magic attacker, and wall
+- Practical score profiles for attackers, walls, healers, disruption, support, balanced, speed-focused, and custom weights
+
+## Scoring
+
+Score profiles are heuristics for sorting and comparing candidates that already
+match the formula constraints. They are not proof that a candidate is correct.
+Candidate correctness still depends on the observed stats, personality bonus,
+IV constraints, and the current formula engine.
+
+The app includes Japanese score profiles such as `物理アタッカー`, `妖術アタッカー`,
+`壁・受け`, `ヒーラー`, `妨害・悪取り付き`, `必殺回し・補助`, `バランス`, and
+`すばやさ重視`. Custom score weights are allowed for experimentation. If every
+custom weight is zero, scoring falls back to `バランス`.
+
+## Runtime Notes
+
+The nginx image exposes `/healthz` for liveness/readiness checks. It returns
+plain text `ok` with access logging disabled. Kubernetes probes should use
+`/healthz` rather than `/`.
+
+`/favicon.ico` intentionally returns HTTP 204 with access logging disabled so
+browsers do not produce noisy 404s. The SPA fallback still serves `index.html`
+for app routes while static assets under `/assets/...` are served as files.
 
 ## Development
 

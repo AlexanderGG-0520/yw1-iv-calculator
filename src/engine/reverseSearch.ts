@@ -1,6 +1,6 @@
 import { togenyanPortedEngine } from "./calculationEngine";
 import { b2ValuesForStat } from "./patterns";
-import { scoreResult } from "./scoring";
+import { resolveScoreProfile, scoreResult } from "./scoring";
 import {
   STAT_KEYS,
   type ReverseResult,
@@ -60,6 +60,7 @@ export function reverseSearch(
   engine: StatCalculationEngine = togenyanPortedEngine,
 ): SearchResponse {
   const maxResults = Math.max(1, Math.min(input.maxResults, 500));
+  const scoreProfile = resolveScoreProfile(input.scorePreset, input.customScoreWeights);
   const perStatCandidates = Object.fromEntries(
     STAT_KEYS.map((stat) => [stat, buildCandidatesForStat(input, stat, engine)]),
   ) as Record<StatKey, StatCandidate[]>;
@@ -99,10 +100,11 @@ export function reverseSearch(
         ivB2: { ...working.ivB2 },
         calculated: { ...working.calculated },
       };
-      const score = scoreResult(partial, input.scorePreset);
+      const score = scoreResult(partial, scoreProfile);
       results.push({
         id: `${results.length + 1}`,
         score,
+        scoreProfile,
         ...partial,
       });
       results.sort((left, right) => right.score - left.score);

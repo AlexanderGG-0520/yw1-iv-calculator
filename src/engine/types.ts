@@ -20,7 +20,29 @@ export type PersonalityMode =
   | "wall"
   | "speed";
 
-export type ScorePreset = "physical_attacker" | "magic_attacker" | "wall";
+export type ScoreProfileId =
+  | "physical_attacker"
+  | "fast_physical"
+  | "bulky_physical"
+  | "magic_attacker"
+  | "fast_magic"
+  | "bulky_magic"
+  | "wall"
+  | "healer"
+  | "disruptor"
+  | "support"
+  | "balanced"
+  | "speed_focus"
+  | "custom";
+
+export type ScorePreset = ScoreProfileId;
+
+export interface ScoreProfile {
+  id: ScoreProfileId;
+  name: string;
+  description: string;
+  weights: StatBlock;
+}
 
 export interface YokaiSpecies {
   id: string;
@@ -43,6 +65,7 @@ export interface SearchInput {
   personalityBonus?: StatBlock;
   b2Mode: B2Mode;
   scorePreset: ScorePreset;
+  customScoreWeights?: StatBlock;
   maxResults: number;
 }
 
@@ -57,6 +80,7 @@ export interface StatCandidate {
 export interface ReverseResult {
   id: string;
   score: number;
+  scoreProfile?: ScoreProfile;
   ivA: StatBlock;
   ivB1: StatBlock;
   ivB2: StatBlock;

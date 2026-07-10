@@ -32,14 +32,30 @@ describe("copy formatting", () => {
   });
 
   it("formats candidate text for notes and togenyan checking", () => {
-    expect(
-      formatCandidateText({
+    const text = formatCandidateText({
+      species,
+      level: 20,
+      personalityMode: "none",
+      result,
+    });
+
+    expect(text).toContain("妖怪: ジバニャン\nLv: 20\n性格ボーナス: none\n評価: バランス");
+    expect(text).toContain("スコア: 42");
+    expect(text).toContain("IV_A: 0 / 1 / 2 / 3 / 4");
+  });
+
+  it("includes score profile and score in JSON output", () => {
+    const parsed = JSON.parse(
+      formatCandidateJson({
         species,
         level: 20,
         personalityMode: "none",
         result,
       }),
-    ).toContain("妖怪: ジバニャン\nLv: 20\n性格ボーナス: none\nIV_A: 0 / 1 / 2 / 3 / 4");
+    );
+
+    expect(parsed.scoreProfile.name).toBe("バランス");
+    expect(parsed.score).toBe(42);
   });
 
   it("includes custom personality bonus in JSON output", () => {

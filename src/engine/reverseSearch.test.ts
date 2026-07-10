@@ -50,4 +50,37 @@ describe("reverse search architecture", () => {
       speed: 3,
     });
   });
+
+  it("uses custom score weights when sorting reverse-search results", () => {
+    const flexibleInput: SearchInput = {
+      ...input,
+      observed: {
+        hp: 10,
+        strength: 10,
+        spirit: 10,
+        defense: 10,
+        speed: 10,
+      },
+      scorePreset: "custom",
+      maxResults: 5,
+    };
+
+    const strengthFirst = reverseSearch(
+      {
+        ...flexibleInput,
+        customScoreWeights: { hp: 0, strength: 5, spirit: 0, defense: 0, speed: 1 },
+      },
+      fixtureEngine,
+    ).results[0];
+    const speedFirst = reverseSearch(
+      {
+        ...flexibleInput,
+        customScoreWeights: { hp: 0, strength: 1, spirit: 0, defense: 0, speed: 5 },
+      },
+      fixtureEngine,
+    ).results[0];
+
+    expect(strengthFirst.ivB1.strength).toBeGreaterThan(strengthFirst.ivB1.speed);
+    expect(speedFirst.ivB1.speed).toBeGreaterThan(speedFirst.ivB1.strength);
+  });
 });

@@ -181,6 +181,19 @@ select {
   padding: 0.7rem;
 }
 
+.score-profile-info {
+  background: #f7f9fb;
+  border: 1px solid #dfe6ee;
+  border-radius: 6px;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+}
+
+.score-profile-info strong {
+  color: #303843;
+}
+
 .error {
   background: #fff1f1;
   border: 1px solid #efb5b5;
