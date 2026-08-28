@@ -1,8 +1,9 @@
 import { togenyanPortedEngine } from "./calculationEngine";
 import { b2ValuesForStat } from "./patterns";
-import { resolveScoreProfile, scoreResult } from "./scoring";
+import { idealScoreForContext, resolveScoreProfile, scoreResult } from "./scoring";
 import {
   STAT_KEYS,
+  type IdealAchievementSummary,
   type ReverseResult,
   type SearchInput,
   type SearchResponse,
@@ -10,6 +11,7 @@ import {
   type StatCalculationEngine,
   type StatCandidate,
   type StatKey,
+  type YokaiSpecies,
 } from "./types";
 import { getYokaiSpecies } from "./yokaiData";
 
@@ -21,6 +23,36 @@ const emptyStatBlock = (): StatBlock => ({
   speed: 0,
 });
 
+function ivAValuesForSearch(engine: StatCalculationEngine, species: YokaiSpecies, stat: StatKey): number[] {
+  return Array.from(engine.ivAValuesForStat?.(species, stat) ?? Array.from({ length: 32 }, (_, index) => index));
+}
+
+function medianFromScoreCounts(scoreCounts: Map<number, number>, totalCount: number): number {
+  const lowerIndex = Math.floor((totalCount - 1) / 2);
+  const upperIndex = Math.floor(totalCount / 2);
+  let lowerScore: number | undefined;
+  let upperScore: number | undefined;
+  let seen = 0;
+
+  for (const [score, count] of [...scoreCounts.entries()].sort(([left], [right]) => left - right)) {
+    const end = seen + count;
+    if (lowerScore === undefined && lowerIndex < end) {
+      lowerScore = score;
+    }
+    if (upperIndex < end) {
+      upperScore = score;
+      break;
+    }
+    seen = end;
+  }
+
+  if (lowerScore === undefined || upperScore === undefined) {
+    throw new Error("Unable to calculate median for candidate scores");
+  }
+
+  return (lowerScore + upperScore) / 2;
+}
+
 export function buildCandidatesForStat(
   input: SearchInput,
   stat: StatKey,
@@ -29,7 +61,7 @@ export function buildCandidatesForStat(
   const species = getYokaiSpecies(input.speciesId);
   const candidates: StatCandidate[] = [];
   const b2Values = b2ValuesForStat(input.evolutionCount);
-  const ivAValues = engine.ivAValuesForStat?.(species, stat) ?? Array.from({ length: 32 }, (_, index) => index);
+  const ivAValues = ivAValuesForSearch(engine, species, stat);
 
   for (const ivA of ivAValues) {
     for (let ivB1 = 0; ivB1 <= 10; ivB1 += 1) {
@@ -60,7 +92,15 @@ export function reverseSearch(
   engine: StatCalculationEngine = togenyanPortedEngine,
 ): SearchResponse {
   const maxResults = Math.max(1, Math.min(input.maxResults, 500));
+  const species = getYokaiSpecies(input.speciesId);
   const scoreProfile = resolveScoreProfile(input.scorePreset, input.customScoreWeights);
+  const ivAMax = Object.fromEntries(
+    STAT_KEYS.map((stat) => {
+      const values = ivAValuesForSearch(engine, species, stat);
+      return [stat, values.length > 0 ? Math.max(...values) : 0];
+    }),
+  ) as StatBlock;
+  const idealScore = idealScoreForContext(ivAMax, input.evolutionCount, scoreProfile);
   const perStatCandidates = Object.fromEntries(
     STAT_KEYS.map((stat) => [stat, buildCandidatesForStat(input, stat, engine)]),
   ) as Record<StatKey, StatCandidate[]>;
@@ -74,7 +114,11 @@ export function reverseSearch(
     calculated: emptyStatBlock(),
   };
   const results: ReverseResult[] = [];
+  const scoreCounts = idealScore !== null && idealScore > 0 ? new Map<number, number>() : null;
   let combinationsVisited = 0;
+  let validCandidateCount = 0;
+  let minScore = Number.POSITIVE_INFINITY;
+  let maxScore = Number.NEGATIVE_INFINITY;
   let truncated = false;
   const maxCombinations = 2_000_000;
 
@@ -101,8 +145,16 @@ export function reverseSearch(
         calculated: { ...working.calculated },
       };
       const score = scoreResult(partial, scoreProfile);
+      validCandidateCount += 1;
+
+      if (scoreCounts) {
+        scoreCounts.set(score, (scoreCounts.get(score) ?? 0) + 1);
+        minScore = Math.min(minScore, score);
+        maxScore = Math.max(maxScore, score);
+      }
+
       results.push({
-        id: `${results.length + 1}`,
+        id: `${validCandidateCount}`,
         score,
         scoreProfile,
         ...partial,
@@ -135,13 +187,27 @@ export function reverseSearch(
 
   visit(0, 0);
 
+  let idealAchievement: IdealAchievementSummary | undefined;
+  if (scoreCounts && idealScore !== null && validCandidateCount > 0) {
+    const medianScore = medianFromScoreCounts(scoreCounts, validCandidateCount);
+    idealAchievement = {
+      idealScore,
+      minPercent: (minScore / idealScore) * 100,
+      medianPercent: (medianScore / idealScore) * 100,
+      maxPercent: (maxScore / idealScore) * 100,
+      complete: !truncated,
+    };
+  }
+
   return {
     results,
     summary: {
       perStatCandidateCounts,
       combinationsVisited,
+      validCandidateCount,
       truncated,
       formulaStatus: engine.formulaStatus,
+      idealAchievement,
     },
   };
 }
