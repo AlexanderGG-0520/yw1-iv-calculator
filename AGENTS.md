@@ -36,10 +36,10 @@ Implement:
 - IV_B_1 support
 - IV_B_1 patterns must sum to 10 across HP, strength, spirit, defense, and speed
 - IV_B_2 support
-- B_2 modes:
-  - direct: all zero
-  - evolved_once: each stat 1 to 3
-  - unknown: each stat 0 to 15, lazy/safe only
+- B_2 evolution-count handling:
+  - 0 evolutions: all zero
+  - n evolutions: each stat can be any cumulative value from n to 3n
+  - unknown evolution count: each stat 0 to 15, lazy/safe only
 - reverse search architecture:
   - build candidates per stat first
   - combine candidates only when B_1 total is 10
@@ -49,7 +49,7 @@ Implement:
   - level
   - observed HP / strength / spirit / defense / speed
   - personality bonus mode
-  - B_2 mode
+  - evolution count with an unknown option
   - reverse button
   - sortable result table
 - rough score presets:
@@ -62,9 +62,10 @@ Implement:
 Add tests for:
 - B_1 pattern count is 1001
 - every B_1 pattern sums to 10
-- direct B_2 mode returns exactly one all-zero pattern
-- evolved_once B_2 mode returns 243 patterns
-- unknown B_2 mode is lazy/safe and does not eagerly allocate a huge array
+- zero evolutions returns exactly one all-zero B_2 pattern
+- one evolution returns 243 B_2 patterns
+- two evolutions produce per-stat B_2 values 2 through 6
+- unknown evolution count is lazy/safe and does not eagerly allocate a huge array
 
 ## Quality bar
 
