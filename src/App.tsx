@@ -5,7 +5,7 @@ import type { WorkerResponse } from "./workers/reverseSearch.worker";
 import { formatCandidateJson, formatCandidateText, formatStatLine } from "./engine/copyFormat";
 import { calculateStatBlock } from "./engine/forwardCalculation";
 import { BUILT_IN_SCORE_PROFILES, formatScoreWeights, hasAnyScoreWeight, resolveScoreProfile } from "./engine/scoring";
-import { STAT_KEYS, type B2Mode, type PersonalityMode, type ReverseResult, type ScorePreset, type SearchInput, type SearchResponse, type StatBlock, type StatKey } from "./engine/types";
+import { STAT_KEYS, type PersonalityMode, type ReverseResult, type ScorePreset, type SearchInput, type SearchResponse, type StatBlock, type StatKey } from "./engine/types";
 import { YOKAI } from "./engine/yokaiData";
 import { sourceCharacteristicBonus, togenyanPortedEngine } from "./engine/calculationEngine";
 
@@ -65,7 +65,8 @@ function App() {
   const [observed, setObserved] = useState<StatBlock>(defaultObserved);
   const [personalitySelection, setPersonalitySelection] = useState<PersonalitySelection>("none");
   const [customBonus, setCustomBonus] = useState<StatBlock>(emptyStats);
-  const [b2Mode, setB2Mode] = useState<B2Mode>("direct");
+  const [knownEvolutionCount, setKnownEvolutionCount] = useState(0);
+  const [evolutionCountUnknown, setEvolutionCountUnknown] = useState(false);
   const [scorePreset, setScorePreset] = useState<ScorePreset>("physical_attacker");
   const [customScoreWeights, setCustomScoreWeights] = useState<StatBlock>(defaultCustomScoreWeights);
   const [response, setResponse] = useState<SearchResponse | null>(null);
@@ -157,7 +158,7 @@ function App() {
       speciesId,
       level,
       observed,
-      b2Mode,
+      evolutionCount: evolutionCountUnknown ? "unknown" : knownEvolutionCount,
       scorePreset,
       customScoreWeights,
       maxResults: 100,
@@ -228,13 +229,20 @@ function App() {
           <section className="controls" aria-label="逆算設定">
             <NumberInput label="レベル" value={level} min={1} max={99} onChange={setLevel} />
             <PersonalitySelect value={personalitySelection} onChange={setPersonalitySelection} />
-            <label>
-              B_2モード
-              <select value={b2Mode} onChange={(event) => setB2Mode(event.target.value as B2Mode)}>
-                <option value="direct">direct</option>
-                <option value="evolved_once">evolved_once</option>
-                <option value="unknown">unknown</option>
-              </select>
+            <NumberInput
+              label="進化回数"
+              value={knownEvolutionCount}
+              min={0}
+              disabled={evolutionCountUnknown}
+              onChange={(value) => setKnownEvolutionCount(Math.max(0, Math.floor(value)))}
+            />
+            <label className="inline-check">
+              <input
+                type="checkbox"
+                checked={evolutionCountUnknown}
+                onChange={(event) => setEvolutionCountUnknown(event.target.checked)}
+              />
+              進化回数が不明
             </label>
             <label>
               スコア
@@ -373,11 +381,32 @@ function PersonalitySelect({ value, onChange }: { value: PersonalitySelection; o
   );
 }
 
-function NumberInput({ label, value, min, max, onChange }: { label: string; value: number; min?: number; max?: number; onChange: (value: number) => void }) {
+function NumberInput({
+  label,
+  value,
+  min,
+  max,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min?: number;
+  max?: number;
+  disabled?: boolean;
+  onChange: (value: number) => void;
+}) {
   return (
     <label>
       {label}
-      <input min={min} max={max} type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} />
+      <input
+        min={min}
+        max={max}
+        type="number"
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
     </label>
   );
 }
