@@ -23,7 +23,7 @@ const input: SearchInput = {
     speed: 2,
   },
   personalityMode: "none",
-  b2Mode: "direct",
+  evolutionCount: 0,
   scorePreset: "physical_attacker",
   maxResults: 50,
 };
@@ -49,6 +49,31 @@ describe("reverse search architecture", () => {
       defense: 3,
       speed: 3,
     });
+  });
+
+  it("uses the cumulative B_2 range for multiple evolutions", () => {
+    const response = reverseSearch(
+      {
+        ...input,
+        observed: {
+          hp: 4,
+          strength: 4,
+          spirit: 4,
+          defense: 4,
+          speed: 4,
+        },
+        evolutionCount: 2,
+      },
+      fixtureEngine,
+    );
+
+    expect(response.summary.perStatCandidateCounts.hp).toBeGreaterThan(0);
+    for (const result of response.results) {
+      for (const value of Object.values(result.ivB2)) {
+        expect(value).toBeGreaterThanOrEqual(2);
+        expect(value).toBeLessThanOrEqual(6);
+      }
+    }
   });
 
   it("uses custom score weights when sorting reverse-search results", () => {
