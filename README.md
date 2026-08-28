@@ -1,65 +1,159 @@
-# Yo-kai Watch 1 IV Reverse Calculator MVP
+# Yo-kai Watch 1 IV Reverse Calculator
 
-Private MVP for reverse-searching Yo-kai Watch 1 IV candidates.
+妖怪ウォッチ1の実機ステータスから、あり得る個体値候補を逆算するための非公式Webツールです。
 
-## Status
+## どうしてこれを作った？
 
-The exact Yo-kai Watch 1 stat formula is not verified in this repository. The current calculator uses a swappable provisional engine in `src/engine/calculationEngine.ts` with TODO comments, so the reverse-search architecture can be tested without pretending the game formula is complete.
+妖怪ウォッチ1で対戦用の個体を厳選するとき、実機で見えるのは最終的なステータスであって、`IV_A`、`IV_B_1`、`IV_B_2` の内訳そのものではありません。
 
-## Features
+さらに、最終ステータスは妖怪の種類、レベル、性格ボーナス、個体値、進化履歴などの組み合わせで決まります。特に `IV_B_1` は5ステータス合計10という制約があり、`IV_B_2` はその個体が実際に進化した回数によって候補範囲が変わります。
 
-- IV_A, IV_B_1, and IV_B_2 candidate dimensions
-- IV_B_1 five-stat patterns constrained to sum to 10
-- IV_B_2 search by the number of evolutions the individual has actually passed through:
-  - `0`: one all-zero pattern
-  - `n > 0`: cumulative per-stat range `n` through `3n`
-  - `unknown`: 0 to 15 in each stat, exposed lazily
-- Multi-stage evolution support without special-casing one, two, or three evolutions
-- Per-stat candidate generation before combination
-- Web Worker reverse search
-- Sortable result table
-- Practical score profiles for attackers, walls, healers, disruption, support, balanced, speed-focused, and custom weights
+そのため、実機ステータスから手作業で「この個体値の組み合わせなら成立する」を洗い出すのはかなり面倒です。
 
-## Scoring
+このツールは、その探索を自動化して、**入力した実機ステータスと現在の計算式・制約に一致する個体値候補を列挙する**ために作っています。
 
-Score profiles are heuristics for sorting and comparing candidates that already
-match the formula constraints. They are not proof that a candidate is correct.
-Candidate correctness still depends on the observed stats, personality bonus,
-IV constraints, and the current formula engine.
+目的は「隠し個体値を魔法のように一意に特定する」ことではありません。同じ実機ステータスを作れる個体値構成が複数ある場合は、その候補を残したまま比較できるようにします。
 
-The app includes Japanese score profiles such as `物理アタッカー`, `妖術アタッカー`,
-`壁・受け`, `ヒーラー`, `妨害・悪取り付き`, `必殺回し・補助`, `バランス`, and
-`すばやさ重視`. Custom score weights are allowed for experimentation. If every
-custom weight is zero, scoring falls back to `バランス`.
+## どう使えば良い？
 
-## Runtime Notes
+### 1. 実機側で装備を外す
 
-The nginx image exposes `/healthz` for liveness/readiness checks. It returns
-plain text `ok` with access logging disabled. Kubernetes probes should use
-`/healthz` rather than `/`.
+装備によるステータス補正が入ると逆算できないため、対象妖怪の装備を外してからステータスを確認してください。
 
-`/favicon.ico` intentionally returns HTTP 204 with access logging disabled so
-browsers do not produce noisy 404s. The SPA fallback still serves `index.html`
-for app routes while static assets under `/assets/...` are served as files.
+### 2. 妖怪とレベルを選ぶ
 
-## Development
+逆算したい妖怪を選択し、実機と同じレベルを入力します。
+
+### 3. 性格ボーナスを選ぶ
+
+実機の性格に対応する性格ボーナスを選びます。
+
+通常の選択肢で表現できない場合や、検証目的で補正値を直接指定したい場合は `Custom` を使えます。
+
+### 4. この個体が実際に進化した回数を入力する
+
+ここで必要なのは「その妖怪が何段階目の姿か」ではなく、**その個体自身が実際に何回進化を通ったか**です。
+
+たとえば進化後の妖怪でも、その姿のまま直接入手した個体なら進化回数は `0` として扱います。
+
+`IV_B_2` の候補範囲は次のように計算します。
+
+| 実際の進化回数 | 各ステータスの IV_B_2 候補 |
+| ---: | --- |
+| 0 | `0` |
+| 1 | `1..3` |
+| 2 | `2..6` |
+| n | `n..3n` |
+| 不明 | `0..15` |
+
+進化回数が分からない場合は「進化回数が不明」を有効にしてください。探索範囲が広がるため、既知の場合より候補数は増えます。
+
+### 5. 実機ステータスを入力する
+
+次の5項目をそのまま入力します。
+
+- HP
+- ちから
+- ようりょく
+- まもり
+- すばやさ
+
+### 6. スコアを選ぶ
+
+スコアは**候補の正しさを判定するものではなく、成立した候補をどう並べるか**を決めるための評価値です。
+
+たとえば物理アタッカーならちからを重く、壁なら耐久系を重く見る、といった形で候補を比較できます。
+
+用意されている主な評価プロファイルは次の通りです。
+
+- 物理アタッカー
+- 妖術アタッカー
+- 壁・受け
+- ヒーラー
+- 妨害・悪取り付き
+- 必殺回し・補助
+- バランス
+- すばやさ重視
+- Custom
+
+### 7. 「逆算」を押す
+
+入力条件に一致する候補を探索します。
+
+候補には次の値が表示されます。
+
+- `IV_A`
+- `IV_B_1`
+- `IV_B_2`
+- 計算結果
+- 選択した評価プロファイルによるスコア
+
+`IV_B_1` は5ステータス合計が10になる組み合わせだけが最終候補として残ります。
+
+### 8. 候補を比較する
+
+候補はスコアや各ステータスで並び替えられます。
+
+必要なら候補をテキストまたはJSONとしてコピーして、厳選記録や別の検証に使えます。
+
+## 候補が出なかったとき
+
+まず次を確認してください。
+
+1. 装備を外しているか
+2. 妖怪とレベルが合っているか
+3. 性格ボーナスが合っているか
+4. その個体が実際に進化した回数が合っているか
+5. 入力した5ステータスに打ち間違いがないか
+
+それでも候補が出ない場合は、現在の計算式やデータ側で未検証のケースに当たっている可能性があります。
+
+## 計算式と検証状況
+
+現在の計算エンジンは、とげにゃんWebの `Status Calculator for Yokai Watch` のソースにある計算処理をTypeScriptへ移植したものです。
+
+元ソースの `Float32Array` を使った計算順序も含めて移植していますが、**このリポジトリ独自に大量の実機個体で完全検証したという意味ではありません**。
+
+そのため、実機で再現しないケースが見つかった場合は、実機結果を優先して検証・修正します。
+
+詳細は [`docs/togenyan-source-notes.md`](docs/togenyan-source-notes.md) を参照してください。
+
+## ローカルで動かす
+
+Node.js環境で次を実行します。
 
 ```sh
 npm install
 npm run dev
 ```
 
-## Verification
+ビルドとテスト:
 
 ```sh
 npm test
 npm run build
 ```
 
-## Local Docker Preview
-
-This Dockerfile and compose file are for local build/preview only.
+Dockerでローカルプレビューする場合:
 
 ```sh
 docker compose --profile local up --build
 ```
+
+Dockerfileと`compose.yml`はローカルビルド・プレビュー用途です。
+
+## 非公式ツールについて
+
+このプロジェクトはファン制作の**非公式ツール**です。
+
+株式会社レベルファイブ、任天堂株式会社、その他の「妖怪ウォッチ」関連の権利者による公式プロジェクトではなく、各社との提携・承認・後援関係もありません。
+
+「妖怪ウォッチ」の名称、キャラクター、ゲーム内容その他の知的財産は、それぞれの権利者に帰属します。
+
+このリポジトリはゲームROM、ゲーム本体の実行コード、画像・音声などの公式ゲームアセットを配布することを目的としていません。
+
+## License
+
+このプロジェクト独自のコードは [MIT License](LICENSE) で公開します。
+
+とげにゃんWeb由来の計算処理・データについては、元ソースのMITライセンスと著作権表示を保持しています。詳細は [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) を参照してください。
