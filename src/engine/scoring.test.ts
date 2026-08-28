@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { BUILT_IN_SCORE_PROFILES, BALANCED_SCORE_PROFILE, resolveScoreProfile, scoreResult } from "./scoring";
+import {
+  BUILT_IN_SCORE_PROFILES,
+  BALANCED_SCORE_PROFILE,
+  idealScoreForContext,
+  resolveScoreProfile,
+  scoreResult,
+} from "./scoring";
 import type { ReverseResult, ScoreProfileId, StatBlock } from "./types";
 
 const block = (hp: number, strength: number, spirit: number, defense: number, speed: number): StatBlock => ({
@@ -57,5 +63,21 @@ describe("score profiles", () => {
 
     expect(profile).toBe(BALANCED_SCORE_PROFILE);
     expect(scoreResult(result(block(1, 1, 1, 1, 1)), profile)).toBe(10);
+  });
+});
+
+describe("ideal achievement baseline", () => {
+  it("calculates the theoretical best score from IV_A, B_1, B_2, evolution count, and role weights", () => {
+    const ivAMax = block(0, 0, 0, 8, 0);
+    const wall = resolveScoreProfile("wall");
+
+    // IV_A: 8 * defense weight 4 = 32
+    // B_1: all 10 on defense => 10 * 2 * 4 = 80
+    // B_2 at two evolutions: max 6 on every stat => 6 * total weight 9 = 54
+    expect(idealScoreForContext(ivAMax, 2, wall)).toBe(166);
+  });
+
+  it("does not invent an ideal rate when evolution count is unknown", () => {
+    expect(idealScoreForContext(block(0, 0, 0, 8, 0), "unknown", resolveScoreProfile("wall"))).toBeNull();
   });
 });
