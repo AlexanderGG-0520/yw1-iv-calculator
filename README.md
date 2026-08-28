@@ -10,10 +10,11 @@ The exact Yo-kai Watch 1 stat formula is not verified in this repository. The cu
 
 - IV_A, IV_B_1, and IV_B_2 candidate dimensions
 - IV_B_1 five-stat patterns constrained to sum to 10
-- IV_B_2 modes:
-  - `direct`: one all-zero pattern
-  - `evolved_once`: 1 to 3 in each stat
+- IV_B_2 search by the number of evolutions the individual has actually passed through:
+  - `0`: one all-zero pattern
+  - `n > 0`: cumulative per-stat range `n` through `3n`
   - `unknown`: 0 to 15 in each stat, exposed lazily
+- Multi-stage evolution support without special-casing one, two, or three evolutions
 - Per-stat candidate generation before combination
 - Web Worker reverse search
 - Sortable result table
