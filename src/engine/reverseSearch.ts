@@ -28,7 +28,7 @@ export function buildCandidatesForStat(
 ): StatCandidate[] {
   const species = getYokaiSpecies(input.speciesId);
   const candidates: StatCandidate[] = [];
-  const b2Values = b2ValuesForStat(input.b2Mode);
+  const b2Values = b2ValuesForStat(input.evolutionCount);
   const ivAValues = engine.ivAValuesForStat?.(species, stat) ?? Array.from({ length: 32 }, (_, index) => index);
 
   for (const ivA of ivAValues) {

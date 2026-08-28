@@ -4,7 +4,7 @@ export type StatKey = (typeof STAT_KEYS)[number];
 
 export type StatBlock = Record<StatKey, number>;
 
-export type B2Mode = "direct" | "evolved_once" | "unknown";
+export type EvolutionCount = number | "unknown";
 
 export type PersonalityMode =
   | "none"
@@ -63,7 +63,7 @@ export interface SearchInput {
   observed: StatBlock;
   personalityMode: PersonalityMode;
   personalityBonus?: StatBlock;
-  b2Mode: B2Mode;
+  evolutionCount: EvolutionCount;
   scorePreset: ScorePreset;
   customScoreWeights?: StatBlock;
   maxResults: number;
