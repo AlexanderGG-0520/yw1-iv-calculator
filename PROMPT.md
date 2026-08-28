@@ -11,7 +11,7 @@ Do not push to GitHub. Commit changes locally only.
 Implement the Yo-kai Watch 1 IV reverse calculator structure:
 - IV_A
 - IV_B_1 sum 10
-- IV_B_2 modes direct/evolved_once/unknown
+- IV_B_2 by actual evolution count: 0 => zero, n => cumulative n..3n per stat, unknown => 0..15 lazy/safe
 - per-stat candidate generation
 - Web Worker reverse search
 - sortable result table
