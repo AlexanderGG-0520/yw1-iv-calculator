@@ -285,7 +285,7 @@ function App() {
 
         {response ? (
           <section className="summary" aria-label="検索サマリー">
-            <span>候補: {response.results.length}</span>
+            <span>候補: {response.summary.validCandidateCount.toLocaleString()}</span>
             <span>確認数: {response.summary.combinationsVisited.toLocaleString()}</span>
             <span>{response.summary.truncated ? "安全上限で停止" : "検索完了"}</span>
             {STAT_KEYS.map((stat) => (
@@ -293,6 +293,33 @@ function App() {
                 {statLabel[stat]}候補: {response.summary.perStatCandidateCounts[stat]}
               </span>
             ))}
+          </section>
+        ) : null}
+
+        {response?.summary.idealAchievement ? (
+          <section className="achievement-summary" aria-label="理想達成率">
+            <div>
+              <span className="muted">理想達成率</span>
+              <strong className="achievement-value">
+                {response.summary.idealAchievement.minPercent.toFixed(1)}〜{response.summary.idealAchievement.maxPercent.toFixed(1)}%
+              </strong>
+            </div>
+            <div>
+              <span className="muted">候補中央値</span>
+              <strong>{response.summary.idealAchievement.medianPercent.toFixed(1)}%</strong>
+            </div>
+            <p>
+              同じ妖怪・進化回数・評価プロファイルで取り得る理論最高スコアを100%として、成立する逆算候補全体の範囲を表示しています。候補中央値は真値ではなく、候補分布の中央です。
+            </p>
+            {!response.summary.idealAchievement.complete ? (
+              <p className="warning">安全上限で探索を停止したため、範囲と候補中央値は確認できた候補内の参考値です。</p>
+            ) : null}
+          </section>
+        ) : response && evolutionCountUnknown ? (
+          <section className="score-profile-info" aria-label="理想達成率">
+            <p>
+              <strong>理想達成率</strong>: 進化回数が不明なため計算していません。
+            </p>
           </section>
         ) : null}
 
