@@ -16,6 +16,7 @@ export type PersonalityMode =
   | "kind"
   | "compassionate"
   | "nasty"
+  | "cooperative"
   | "devoted"
   | "wall"
   | "speed";
