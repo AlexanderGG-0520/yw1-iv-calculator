@@ -24,7 +24,8 @@ export const sourceCharacteristicBonus: Record<PersonalityMode, StatBlock> = {
   compassionate: { hp: 20, strength: 0, spirit: 0, defense: 0, speed: 0 },
   nasty: { hp: 0, strength: 10, spirit: 0, defense: 0, speed: 10 },
   speed: { hp: 0, strength: 0, spirit: 0, defense: 0, speed: 20 },
-  devoted: { hp: 10, strength: 0, spirit: 0, defense: 0, speed: 10 },
+  cooperative: { hp: 10, strength: 0, spirit: 0, defense: 0, speed: 10 },
+  devoted: { hp: 0, strength: 10, spirit: 0, defense: 10, speed: 0 },
 };
 
 function sourceFloatTable(): Float32Array {
