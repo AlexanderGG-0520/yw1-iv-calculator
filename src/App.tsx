@@ -41,7 +41,8 @@ const personalityOptions: { value: PersonalityMode; label: string }[] = [
   { value: "compassionate", label: "情け深い (+HP)" },
   { value: "nasty", label: "いやらしい (+ちから/+すばやさ)" },
   { value: "speed", label: "非道 (+すばやさ)" },
-  { value: "devoted", label: "協力的 (+HP/+すばやさ)" },
+  { value: "cooperative", label: "協力的 (+HP/+すばやさ)" },
+  { value: "devoted", label: "けんしん的 (+ちから/+まもり)" },
 ];
 
 const formulaStatusLabel = togenyanPortedEngine.formulaStatusKind.replaceAll("_", " ");

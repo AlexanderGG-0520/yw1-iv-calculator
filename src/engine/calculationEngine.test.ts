@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { togenyanPortedEngine } from "./calculationEngine";
+import { sourceCharacteristicBonus, togenyanPortedEngine } from "./calculationEngine";
 import { STAT_KEYS, type PersonalityMode, type StatBlock } from "./types";
 import { getYokaiSpecies } from "./yokaiData";
 
@@ -63,6 +63,11 @@ describe("togenyan ported engine", () => {
         personalityMode: "physical_attacker",
       }),
     ).toEqual({ hp: 337, strength: 140, spirit: 110, defense: 126, speed: 345 });
+  });
+
+  it("keeps cooperative and devoted training bonuses distinct", () => {
+    expect(sourceCharacteristicBonus.cooperative).toEqual({ hp: 10, strength: 0, spirit: 0, defense: 0, speed: 10 });
+    expect(sourceCharacteristicBonus.devoted).toEqual({ hp: 0, strength: 10, spirit: 0, defense: 10, speed: 0 });
   });
 
   it("keeps preset personality behavior unchanged when no custom bonus is passed", () => {
