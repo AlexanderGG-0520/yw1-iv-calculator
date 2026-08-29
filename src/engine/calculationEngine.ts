@@ -1,3 +1,4 @@
+import { ivAValuesForSpeciesStat } from "./ivA";
 import type { PersonalityMode, StatBlock, StatCalculationEngine, StatCalculationInput, StatKey, YokaiSpecies } from "./types";
 
 /*
@@ -154,10 +155,7 @@ export const togenyanPortedEngine: StatCalculationEngine = {
     });
   },
   ivAValuesForStat(species: YokaiSpecies, stat: StatKey): Iterable<number> {
-    if (species.ivAAllowed?.[stat] === false) {
-      return [0];
-    }
-    return Array.from({ length: 32 }, (_, index) => index);
+    return ivAValuesForSpeciesStat(species, stat);
   },
 };
 

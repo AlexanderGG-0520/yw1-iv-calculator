@@ -194,6 +194,31 @@ select {
   color: #303843;
 }
 
+.achievement-summary {
+  background: #fff;
+  border: 1px solid #d7dee7;
+  border-radius: 8px;
+  display: grid;
+  gap: 0.75rem 1.25rem;
+  grid-template-columns: minmax(0, 2fr) minmax(140px, 1fr);
+  padding: 1rem;
+}
+
+.achievement-summary > div > strong {
+  color: #303843;
+  display: block;
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.15rem;
+}
+
+.achievement-summary .achievement-value {
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+}
+
+.achievement-summary p {
+  grid-column: 1 / -1;
+}
+
 .error {
   background: #fff1f1;
   border: 1px solid #efb5b5;
@@ -356,6 +381,10 @@ th button {
 
   .wide-field {
     grid-column: auto;
+  }
+
+  .achievement-summary {
+    grid-template-columns: 1fr;
   }
 
   .block-line {

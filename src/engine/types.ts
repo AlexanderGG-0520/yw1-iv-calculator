@@ -87,11 +87,21 @@ export interface ReverseResult {
   calculated: StatBlock;
 }
 
+export interface IdealAchievementSummary {
+  idealScore: number;
+  minPercent: number;
+  medianPercent: number;
+  maxPercent: number;
+  complete: boolean;
+}
+
 export interface SearchSummary {
   perStatCandidateCounts: StatBlock;
   combinationsVisited: number;
+  validCandidateCount: number;
   truncated: boolean;
   formulaStatus: string;
+  idealAchievement?: IdealAchievementSummary;
 }
 
 export interface SearchResponse {

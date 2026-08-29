@@ -1,4 +1,12 @@
-import { STAT_KEYS, type ReverseResult, type ScorePreset, type ScoreProfile, type ScoreProfileId, type StatBlock } from "./types";
+import {
+  STAT_KEYS,
+  type EvolutionCount,
+  type ReverseResult,
+  type ScorePreset,
+  type ScoreProfile,
+  type ScoreProfileId,
+  type StatBlock,
+} from "./types";
 
 // Scores are only sorting heuristics for already-valid reverse-search candidates.
 // Weights intentionally keep off-role damage stats nonzero on broad profiles so
@@ -104,20 +112,59 @@ export function formatScoreWeights(weights: StatBlock): string {
   return `HP ${weights.hp} / ちから ${weights.strength} / ようりょく ${weights.spirit} / まもり ${weights.defense} / すばやさ ${weights.speed}`;
 }
 
+function resolveWeights(
+  profileOrWeights: ScoreProfile | StatBlock | ScoreProfileId,
+  customWeights?: StatBlock,
+): StatBlock {
+  return typeof profileOrWeights === "string"
+    ? resolveScoreProfile(profileOrWeights, customWeights).weights
+    : "weights" in profileOrWeights
+      ? profileOrWeights.weights
+      : profileOrWeights;
+}
+
 export function scoreResult(
   result: Omit<ReverseResult, "id" | "score" | "scoreProfile">,
   profileOrWeights: ScoreProfile | StatBlock | ScoreProfileId,
   customWeights?: StatBlock,
 ): number {
-  const weights =
-    typeof profileOrWeights === "string"
-      ? resolveScoreProfile(profileOrWeights, customWeights).weights
-      : "weights" in profileOrWeights
-        ? profileOrWeights.weights
-        : profileOrWeights;
+  const weights = resolveWeights(profileOrWeights, customWeights);
 
   return STAT_KEYS.reduce((total, stat) => {
     const raw = result.ivA[stat] + result.ivB1[stat] * 2 + result.ivB2[stat];
     return total + raw * weights[stat];
   }, 0);
+}
+
+export function idealScoreForContext(
+  ivAMax: StatBlock,
+  evolutionCount: EvolutionCount,
+  profileOrWeights: ScoreProfile | StatBlock | ScoreProfileId,
+  customWeights?: StatBlock,
+): number | null {
+  if (evolutionCount === "unknown") {
+    return null;
+  }
+
+  const weights = resolveWeights(profileOrWeights, customWeights);
+  const ivAScore = STAT_KEYS.reduce((total, stat) => {
+    const value = weights[stat] >= 0 ? ivAMax[stat] : 0;
+    return total + value * weights[stat];
+  }, 0);
+
+  // B_1 always totals 10, and contributes twice its raw value to the score.
+  // Therefore the ideal allocation puts all 10 points on the highest-weight stat.
+  const b1Score = 20 * Math.max(...STAT_KEYS.map((stat) => weights[stat]));
+
+  // The current reverse-search model treats each evolution as an independent
+  // +1..+3 B_2 gain per stat, so n evolutions give a cumulative n..3n range.
+  const b2Score =
+    evolutionCount === 0
+      ? 0
+      : STAT_KEYS.reduce((total, stat) => {
+          const value = weights[stat] >= 0 ? evolutionCount * 3 : evolutionCount;
+          return total + value * weights[stat];
+        }, 0);
+
+  return ivAScore + b1Score + b2Score;
 }

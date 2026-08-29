@@ -108,4 +108,34 @@ describe("reverse search architecture", () => {
     expect(strengthFirst.ivB1.strength).toBeGreaterThan(strengthFirst.ivB1.speed);
     expect(speedFirst.ivB1.speed).toBeGreaterThan(speedFirst.ivB1.strength);
   });
+
+  it("summarizes ideal achievement across every valid candidate, not only retained top results", () => {
+    const response = reverseSearch(
+      {
+        ...input,
+        observed: {
+          hp: 10,
+          strength: 10,
+          spirit: 10,
+          defense: 10,
+          speed: 10,
+        },
+        maxResults: 5,
+      },
+      fixtureEngine,
+    );
+
+    expect(response.results).toHaveLength(5);
+    expect(response.summary.validCandidateCount).toBe(1001);
+    expect(response.summary.idealAchievement).toBeDefined();
+    expect(response.summary.idealAchievement!.complete).toBe(true);
+    expect(response.summary.idealAchievement!.minPercent).toBeLessThanOrEqual(response.summary.idealAchievement!.medianPercent);
+    expect(response.summary.idealAchievement!.medianPercent).toBeLessThanOrEqual(response.summary.idealAchievement!.maxPercent);
+  });
+
+  it("omits ideal achievement when evolution count is unknown", () => {
+    const response = reverseSearch({ ...input, evolutionCount: "unknown" }, fixtureEngine);
+
+    expect(response.summary.idealAchievement).toBeUndefined();
+  });
 });
