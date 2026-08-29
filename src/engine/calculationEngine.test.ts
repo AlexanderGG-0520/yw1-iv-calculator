@@ -142,10 +142,10 @@ describe("togenyan ported engine", () => {
     expect(defense).toBe(14);
   });
 
-  it("limits IV_A candidates to the source class stat", () => {
+  it("limits IV_A candidates to the researched source class bounds", () => {
     const jibanyan = getYokaiSpecies("jibanyan");
 
     expect([...togenyanPortedEngine.ivAValuesForStat!(jibanyan, "hp")]).toEqual([0]);
-    expect([...togenyanPortedEngine.ivAValuesForStat!(jibanyan, "speed")]).toHaveLength(32);
+    expect([...togenyanPortedEngine.ivAValuesForStat!(jibanyan, "speed")]).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
   });
 });
