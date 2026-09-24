@@ -1,0 +1,4 @@
+# Crawling is intentionally permitted for search engines, archival services,
+# AI crawlers, and other well-behaved automated agents.
+User-agent: *
+Allow: /
