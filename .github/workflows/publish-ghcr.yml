@@ -9,12 +9,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
   group: publish-ghcr-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -45,6 +45,7 @@ jobs:
 
       - name: Prepare lowercase image name
         id: image
+        shell: bash
         run: |
           echo "name=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
@@ -64,6 +65,7 @@ jobs:
         with:
           images: ${{ steps.image.outputs.name }}
           tags: |
+            type=raw,value=${{ github.sha }}
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
             type=ref,event=tag
@@ -79,3 +81,69 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  update-gitops:
+    name: Pin GitOps manifest to published image
+    needs: test-and-publish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Update immutable image tag
+        env:
+          IMAGE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          current="$(git rev-parse HEAD)"
+          if [[ "$current" != "$IMAGE_SHA" ]]; then
+            echo "main advanced to $current; skipping stale deployment update for $IMAGE_SHA"
+            exit 0
+          fi
+
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          sha = os.environ["IMAGE_SHA"]
+          path = Path("infra/kubernetes/app.yaml")
+          content = path.read_text()
+
+          content, count = re.subn(
+              r"(image:\s+ghcr\.io/alexandergg-0520/yw1-iv-calculator:)[^\s]+",
+              rf"\g<1>{sha}",
+              content,
+          )
+          if count != 1:
+              raise SystemExit(
+                  f"expected exactly one yw1-iv-calculator image reference, found {count}"
+              )
+
+          path.write_text(content)
+          PY
+
+      - name: Commit deployment revision
+        env:
+          IMAGE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- infra/kubernetes/app.yaml; then
+            echo "Deployment manifest already references $IMAGE_SHA"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add infra/kubernetes/app.yaml
+          git commit -m "chore(deploy): yw1-iv-calculator ${IMAGE_SHA:0:12} [skip ci]"
+          git push origin HEAD:main
