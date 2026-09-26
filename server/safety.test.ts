@@ -1,45 +1,85 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import { BoundedRateLimiter, clientIp } from "./safety";
+import {
+  BoundedRateLimiter,
+  clientIp,
+  TrustedProxyCidrs,
+} from "./safety";
 
 describe("MCP server safety helpers", () => {
-  it("uses Cloudflare's connecting IP and ignores X-Forwarded-For", () => {
+  it("uses CF-Connecting-IP only when the socket peer is inside a trusted proxy CIDR", () => {
+    const trusted = new TrustedProxyCidrs("10.244.0.0/16");
+
     expect(
-      clientIp({
-        headers: {
-          "cf-connecting-ip": "203.0.113.10",
-          "x-forwarded-for": "198.51.100.250",
+      clientIp(
+        {
+          headers: {
+            "cf-connecting-ip": "203.0.113.10",
+            "x-forwarded-for": "198.51.100.250",
+          },
+          socket: { remoteAddress: "10.244.2.17" },
         },
-        socket: { remoteAddress: "10.0.0.4" },
-      }, true),
+        trusted,
+      ),
     ).toBe("203.0.113.10");
 
     expect(
-      clientIp({
-        headers: {
-          "cf-connecting-ip": "203.0.113.10",
-          "x-forwarded-for": "198.51.100.250",
+      clientIp(
+        {
+          headers: {
+            "cf-connecting-ip": "203.0.113.10",
+            "x-forwarded-for": "198.51.100.250",
+          },
+          socket: { remoteAddress: "10.245.2.17" },
         },
-        socket: { remoteAddress: "10.0.0.4" },
-      }),
-    ).toBe("10.0.0.4");
-
-    expect(
-      clientIp({
-        headers: { "x-forwarded-for": "198.51.100.250" },
-        socket: { remoteAddress: "10.0.0.4" },
-      }),
-    ).toBe("10.0.0.4");
+        trusted,
+      ),
+    ).toBe("10.245.2.17");
   });
 
-  it("falls back to the socket for malformed Cloudflare IP headers", () => {
+  it("normalizes IPv4-mapped socket peers before trusted-proxy matching", () => {
+    const trusted = new TrustedProxyCidrs("10.244.0.0/16");
     expect(
-      clientIp({
-        headers: { "cf-connecting-ip": "not-an-ip" },
-        socket: { remoteAddress: "2001:db8::10" },
-      }, true),
-    ).toBe("2001:db8::10");
+      clientIp(
+        {
+          headers: { "cf-connecting-ip": "2001:db8::42" },
+          socket: { remoteAddress: "::ffff:10.244.1.9" },
+        },
+        trusted,
+      ),
+    ).toBe("2001:db8::42");
+  });
+
+  it("ignores X-Forwarded-For even from a trusted proxy", () => {
+    const trusted = new TrustedProxyCidrs("10.244.0.0/16");
+    expect(
+      clientIp(
+        {
+          headers: { "x-forwarded-for": "198.51.100.250" },
+          socket: { remoteAddress: "10.244.1.9" },
+        },
+        trusted,
+      ),
+    ).toBe("10.244.1.9");
+  });
+
+  it("falls back to the trusted socket peer for malformed Cloudflare client IP", () => {
+    const trusted = new TrustedProxyCidrs("10.244.0.0/16");
+    expect(
+      clientIp(
+        {
+          headers: { "cf-connecting-ip": "not-an-ip" },
+          socket: { remoteAddress: "10.244.1.9" },
+        },
+        trusted,
+      ),
+    ).toBe("10.244.1.9");
+  });
+
+  it("rejects malformed trusted proxy CIDRs at startup", () => {
+    expect(() => new TrustedProxyCidrs("10.244.0.0/99")).toThrow(/prefix/);
+    expect(() => new TrustedProxyCidrs("not-a-cidr")).toThrow(/address/);
   });
 
   it("prunes expired rate-limit entries", () => {
@@ -62,7 +102,6 @@ describe("MCP server safety helpers", () => {
     expect(limiter.take("d", 1, 40_000, 0)).toBe(true);
     expect(limiter.size).toBe(3);
 
-    // "a" had the earliest reset and is evicted first.
     expect(limiter.take("a", 1, 50_000, 1)).toBe(true);
     expect(limiter.size).toBe(3);
   });
