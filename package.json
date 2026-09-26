@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build:web": "vite build",
-    "build:server": "vite build --ssr server/index.ts --outDir dist-server",
+    "build:server": "vite build --ssr server/index.ts --outDir dist-server && vite build --ssr server/reverseWorker.ts --outDir dist-worker",
     "build": "tsc -b && npm run build:web && npm run build:server",
     "test": "vitest run",
     "preview": "vite preview --host 0.0.0.0",
