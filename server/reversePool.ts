@@ -62,6 +62,35 @@ export class ReverseWorkerPool {
 
     return new Promise((resolvePromise, rejectPromise) => {
       let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+
+      const cleanup = () => {
+        if (timer !== undefined) {
+          clearTimeout(timer);
+        }
+        signal?.removeEventListener("abort", onAbort);
+        worker.off("message", onMessage);
+        worker.off("error", onError);
+        worker.off("exit", onExit);
+      };
+
+      const finish = (kind: "resolve" | "reject", value: unknown) => {
+        if (settled) return;
+        settled = true;
+        this.activeWorkers -= 1;
+        cleanup();
+        try {
+          void Promise.resolve(worker.terminate()).catch(() => undefined);
+        } catch {
+          // Slot release and promise settlement must not depend on terminate().
+        }
+
+        if (kind === "resolve") {
+          resolvePromise(value);
+        } else {
+          rejectPromise(value);
+        }
+      };
 
       const onMessage = (message: unknown) => {
         const response = message as
@@ -69,54 +98,21 @@ export class ReverseWorkerPool {
           | null
           | undefined;
         if (response?.type === "success") {
-          finish(resolvePromise, response.result);
+          finish("resolve", response.result);
           return;
         }
         finish(
-          rejectPromise,
+          "reject",
           new Error(response?.error ?? "reverse_iv worker returned an invalid response"),
         );
       };
-      const onError = (error: Error) => finish(rejectPromise, error);
+      const onError = (error: Error) => finish("reject", error);
       const onExit = (code: number) => {
         if (!settled && code !== 0) {
-          finish(rejectPromise, new Error("reverse_iv worker exited with code " + code));
+          finish("reject", new Error("reverse_iv worker exited with code " + code));
         }
       };
-      const onAbort = () => finish(rejectPromise, abortError());
-
-      const timer = setTimeout(() => {
-        finish(
-          rejectPromise,
-          new Error("reverse_iv exceeded the 15 second execution limit"),
-        );
-      }, this.timeoutMs);
-
-      const cleanup = () => {
-        clearTimeout(timer);
-        signal?.removeEventListener("abort", onAbort);
-        worker.off("message", onMessage);
-        worker.off("error", onError);
-        worker.off("exit", onExit);
-      };
-
-      function finish(
-        callback: (value: never) => void,
-        value: unknown,
-      ): void {
-        if (settled) return;
-        settled = true;
-        thisPool.activeWorkers -= 1;
-        cleanup();
-        try {
-          void Promise.resolve(worker.terminate()).catch(() => undefined);
-        } catch {
-          // Slot release and promise settlement must not depend on terminate().
-        }
-        callback(value as never);
-      }
-
-      const thisPool = this;
+      const onAbort = () => finish("reject", abortError());
 
       worker.once("message", onMessage);
       worker.once("error", onError);
@@ -128,10 +124,17 @@ export class ReverseWorkerPool {
         return;
       }
 
+      timer = setTimeout(() => {
+        finish(
+          "reject",
+          new Error("reverse_iv exceeded the 15 second execution limit"),
+        );
+      }, this.timeoutMs);
+
       try {
         worker.postMessage(args);
       } catch (error) {
-        finish(rejectPromise, error);
+        finish("reject", error);
       }
     });
   }
