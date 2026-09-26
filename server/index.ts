@@ -3,7 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from "../src/agentTools";
 import { BoundedRateLimiter, clientIp, TrustedProxyCidrs } from "./safety";
-import { requestDisconnectSignal, ReverseWorkerPool } from "./reversePool";
+import { runReverseForRequest, ReverseWorkerPool } from "./reversePool";
 
 const PORT = Number(process.env.PORT ?? "80");
 const STATIC_ROOT = resolve(process.env.STATIC_ROOT ?? "/app/dist");
@@ -286,19 +286,13 @@ async function handleMcp(req, res) {
       }
 
       let toolResult;
-      let disconnect:
-        | { signal: AbortSignal; cleanup: () => void }
-        | undefined;
       try {
-        if (name === "reverse_iv") {
-          disconnect = requestDisconnectSignal(req, res);
-          toolResult = await reverseWorkers.run(args, disconnect.signal);
-        } else {
-          toolResult = executeAgentTool(name, args);
-        }
+        toolResult =
+          name === "reverse_iv"
+            ? await runReverseForRequest(reverseWorkers, args, req, res)
+            : executeAgentTool(name, args);
       } catch (error) {
         if (
-          disconnect?.signal.aborted ||
           res.destroyed ||
           (error instanceof Error && error.name === "AbortError")
         ) {
@@ -323,8 +317,6 @@ async function handleMcp(req, res) {
           protocolHeaders,
         );
         return;
-      } finally {
-        disconnect?.cleanup();
       }
 
       const result = {
