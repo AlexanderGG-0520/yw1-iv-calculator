@@ -434,7 +434,9 @@ function publicOrigin(req) {
   const protocol =
     typeof forwardedProto === "string"
       ? forwardedProto.split(",")[0].trim()
-      : "https";
+      : req.socket.encrypted
+        ? "https"
+        : "http";
   const forwardedHost = req.headers["x-forwarded-host"];
   const host =
     typeof forwardedHost === "string"
