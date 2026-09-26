@@ -19,10 +19,7 @@ spec:
           image: ghcr.io/alexandergg-0520/yw1-iv-calculator:954b84ce80fcc0bdaa4da6a0fb91a0054facc880
           ports:
             - name: http
-              containerPort: 8080
-          env:
-            - name: TRUST_CF_CONNECTING_IP
-              value: "true"
+              containerPort: 80
           resources:
             requests:
               cpu: 25m
@@ -42,14 +39,6 @@ spec:
               port: http
             initialDelaySeconds: 10
             periodSeconds: 30
-          securityContext:
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
-            seccompProfile:
-              type: RuntimeDefault
 ---
 apiVersion: v1
 kind: Service
