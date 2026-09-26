@@ -5,13 +5,34 @@ import {
   type ReverseIvToolResult,
 } from "./agentTools";
 
+interface WebMcpModelContext {
+  registerTool(
+    tool: {
+      name: string;
+      title?: string;
+      description: string;
+      inputSchema: Record<string, unknown>;
+      annotations?: {
+        readOnlyHint?: boolean;
+        consequentialHint?: boolean;
+        untrustedContentHint?: boolean;
+        debugging?: boolean;
+      };
+      execute: (input: Record<string, unknown>) => unknown | Promise<unknown>;
+    },
+    options?: { signal?: AbortSignal },
+  ): void | Promise<void>;
+}
+
 export interface WebMcpUiActions {
   showForward(result: CalculateStatsToolResult): void;
   showReverse(result: ReverseIvToolResult): void;
 }
 
 export function registerWebMcpTools(actions: WebMcpUiActions): () => void {
-  const modelContext = document.modelContext;
+  const modelContext = (
+    document as Document & { modelContext?: WebMcpModelContext }
+  ).modelContext;
   if (!modelContext?.registerTool) {
     return () => {};
   }
@@ -31,7 +52,7 @@ export function registerWebMcpTools(actions: WebMcpUiActions): () => void {
           untrustedContentHint: false,
           debugging: false,
         },
-        execute: async (input) => {
+        execute: async (input: Record<string, unknown>) => {
           const result = executeAgentTool(definition.name, input);
 
           if (definition.name === "calculate_stats") {
