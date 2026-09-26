@@ -7,6 +7,7 @@ import { BoundedRateLimiter, clientIp } from "./safety";
 
 const PORT = Number(process.env.PORT ?? "8080");
 const STATIC_ROOT = resolve(process.env.STATIC_ROOT ?? "/app/dist");
+const TRUST_CF_CONNECTING_IP = process.env.TRUST_CF_CONNECTING_IP === "true";
 const SERVER_INFO = { name: "yw1-iv-calculator", version: "0.1.0" };
 const MODERN_VERSION = "2026-07-28";
 const LEGACY_VERSION = "2025-11-25";
@@ -188,7 +189,7 @@ async function handleMcp(req, res) {
     return;
   }
 
-  const ip = clientIp(req);
+  const ip = clientIp(req, TRUST_CF_CONNECTING_IP);
   if (!generalRate.take(ip, 60, 60_000)) {
     writeJson(res, 429, rpcError(null, -32000, "Rate limit exceeded"));
     return;
