@@ -7,9 +7,19 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM nginx:1.29-alpine AS runtime
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+FROM node:25-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=80
+ENV STATIC_ROOT=/app/dist
 
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/dist-server ./dist-server
+COPY --from=build /app/dist-worker ./dist-worker
+
+RUN apk add --no-cache libcap \
+    && setcap cap_net_bind_service=+ep "$(readlink -f "$(which node)")"
+
+USER node
 EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "dist-server/index.js"]

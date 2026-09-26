@@ -20,13 +20,18 @@ spec:
           ports:
             - name: http
               containerPort: 80
+          env:
+            - name: PUBLIC_ORIGIN
+              value: "https://yw1-iv.alec-ofc.com"
+            - name: TRUSTED_PROXY_CIDRS
+              value: "10.244.0.0/16"
           resources:
             requests:
-              cpu: 10m
-              memory: 16Mi
+              cpu: 25m
+              memory: 32Mi
             limits:
-              cpu: 200m
-              memory: 128Mi
+              cpu: 500m
+              memory: 256Mi
           readinessProbe:
             httpGet:
               path: /healthz
@@ -53,3 +58,34 @@ spec:
     - name: http
       port: 80
       targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: yw1-iv-calculator-trusted-proxies
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: yw1-iv-calculator
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflared
+          podSelector:
+            matchLabels:
+              app: cloudflared
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+      ports:
+        - protocol: TCP
+          port: 80

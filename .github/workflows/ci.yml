@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 25
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build web and MCP server
+        run: npm run build
+
+      - name: Smoke test HTTP and MCP
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PORT=8080 STATIC_ROOT="$PWD/dist" node dist-server/index.js >/tmp/yw1-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          ready=0
+          for _ in {1..20}; do
+            if curl -fsS http://127.0.0.1:8080/healthz >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 0.25
+          done
+
+          if [[ "$ready" != "1" ]]; then
+            cat /tmp/yw1-server.log
+            exit 1
+          fi
+
+          curl -fsS http://127.0.0.1:8080/robots.txt | grep -F 'Allow: /'
+          curl -fsS http://127.0.0.1:8080/.well-known/mcp.json | grep -F '"streamable_http":"http://127.0.0.1:8080/mcp"'
+
+          exec 3<>/dev/tcp/127.0.0.1/8080
+          printf 'GET /%% HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3
+          head -n 1 <&3 | grep -F '400'
+          exec 3>&-
+          curl -fsS http://127.0.0.1:8080/healthz | grep -F 'ok'
+
+          curl -fsS -X POST http://127.0.0.1:8080/mcp             -H 'Content-Type: application/json'             --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ci","version":"1.0.0"}}}'             | grep -F '"protocolVersion":"2025-11-25"'
+
+          curl -fsS -X POST http://127.0.0.1:8080/mcp             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: server/discover'             --data '{"jsonrpc":"2.0","id":2,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"ci","version":"1.0.0"},"io.modelcontextprotocol/clientCapabilities":{}}}}'             | grep -F '"supportedVersions":["2026-07-28"]'
+
+          curl -fsS -X POST http://127.0.0.1:8080/mcp             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/list'             --data '{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}'             | grep -F '"name":"reverse_iv"'
+
+          curl -fsS -X POST http://127.0.0.1:8080/mcp             -H 'Content-Type: application/json'             -H 'MCP-Protocol-Version: 2026-07-28'             -H 'Mcp-Method: tools/call'             -H 'Mcp-Name: search_yokai'             --data '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"search_yokai","arguments":{"query":"ジバニャン","limit":5},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}'             | grep -F 'ジバニャン'
+
+          curl -fsS -X POST http://127.0.0.1:8080/mcp \
+            -H 'Content-Type: application/json' \
+            -H 'MCP-Protocol-Version: 2026-07-28' \
+            -H 'Mcp-Method: tools/call' \
+            -H 'Mcp-Name: reverse_iv' \
+            --data '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"reverse_iv","arguments":{"speciesId":"jibanyan","level":20,"observed":{"hp":80,"strength":60,"spirit":45,"defense":45,"speed":58},"personalityMode":"none","evolutionCount":6,"scorePreset":"balanced","maxResults":20},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}}' \
+            | grep -F 'evolutionCount must be an integer from 0 to 5'

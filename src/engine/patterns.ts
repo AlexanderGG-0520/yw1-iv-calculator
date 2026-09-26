@@ -9,7 +9,8 @@ export interface LazyPatternSource<T> extends Iterable<T> {
 
 export type B2PatternSource = BPattern[] | LazyPatternSource<BPattern>;
 
-const UNKNOWN_B2_MAX = 15;
+export const MAX_IV_B2 = 15;
+export const MAX_KNOWN_EVOLUTION_COUNT = 5;
 const KNOWN_B2_EAGER_PATTERN_LIMIT = 100_000;
 
 const zeroPattern = (): BPattern => ({
@@ -21,8 +22,16 @@ const zeroPattern = (): BPattern => ({
 });
 
 function validateEvolutionCount(evolutionCount: number): void {
-  if (!Number.isInteger(evolutionCount) || evolutionCount < 0) {
-    throw new RangeError("evolutionCount must be a non-negative integer or unknown");
+  if (
+    !Number.isInteger(evolutionCount) ||
+    evolutionCount < 0 ||
+    evolutionCount > MAX_KNOWN_EVOLUTION_COUNT
+  ) {
+    throw new RangeError(
+      "evolutionCount must be an integer from 0 to " +
+        MAX_KNOWN_EVOLUTION_COUNT +
+        " or unknown",
+    );
   }
 }
 
@@ -69,7 +78,7 @@ export function generateB1Patterns(): BPattern[] {
 
 export function generateB2Patterns(evolutionCount: EvolutionCount): B2PatternSource {
   if (evolutionCount === "unknown") {
-    const values = inclusiveRange(0, UNKNOWN_B2_MAX);
+    const values = inclusiveRange(0, MAX_IV_B2);
     return createLazyB2Patterns(values, values.length ** STAT_KEYS.length);
   }
 
@@ -91,7 +100,7 @@ export function generateB2Patterns(evolutionCount: EvolutionCount): B2PatternSou
 
 export function b2ValuesForStat(evolutionCount: EvolutionCount): number[] {
   if (evolutionCount === "unknown") {
-    return inclusiveRange(0, UNKNOWN_B2_MAX);
+    return inclusiveRange(0, MAX_IV_B2);
   }
 
   validateEvolutionCount(evolutionCount);

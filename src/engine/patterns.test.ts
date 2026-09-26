@@ -52,8 +52,10 @@ describe("IV_B_2 evolution counts", () => {
     }
   });
 
-  it("rejects invalid known evolution counts", () => {
+  it("rejects invalid or oversized known evolution counts", () => {
     expect(() => b2ValuesForStat(-1)).toThrow(RangeError);
     expect(() => b2ValuesForStat(1.5)).toThrow(RangeError);
+    expect(() => b2ValuesForStat(6)).toThrow(RangeError);
+    expect(() => generateB2Patterns(6)).toThrow(RangeError);
   });
 });
