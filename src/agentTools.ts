@@ -2,6 +2,7 @@ import { togenyanPortedEngine } from "./engine/calculationEngine";
 import { calculateStatBlock } from "./engine/forwardCalculation";
 import { ivAMaxForSpeciesStat } from "./engine/ivA";
 import { reverseSearch } from "./engine/reverseSearch";
+import { MAX_KNOWN_EVOLUTION_COUNT } from "./engine/patterns";
 import { BUILT_IN_SCORE_PROFILES } from "./engine/scoring";
 import {
   STAT_KEYS,
@@ -162,7 +163,7 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
         personalityBonus: statBlockSchema,
         evolutionCount: {
           oneOf: [
-            { type: "integer", minimum: 0 },
+            { type: "integer", minimum: 0, maximum: MAX_KNOWN_EVOLUTION_COUNT },
             { type: "string", enum: ["unknown"] },
           ],
         },
@@ -251,8 +252,16 @@ function scorePresetValue(object: Record<string, unknown>): ScorePreset {
 function evolutionCountValue(object: Record<string, unknown>): EvolutionCount {
   const value = object.evolutionCount;
   if (value === "unknown") return "unknown";
-  if (!Number.isInteger(value) || (value as number) < 0) {
-    throw new TypeError("evolutionCount must be a non-negative integer or 'unknown'");
+  if (
+    !Number.isInteger(value) ||
+    (value as number) < 0 ||
+    (value as number) > MAX_KNOWN_EVOLUTION_COUNT
+  ) {
+    throw new RangeError(
+      "evolutionCount must be an integer from 0 to " +
+        MAX_KNOWN_EVOLUTION_COUNT +
+        " or 'unknown'",
+    );
   }
   return value as number;
 }
@@ -344,7 +353,7 @@ export function calculateStatsTool(args: unknown): CalculateStatsToolResult {
   };
 }
 
-export function reverseIvTool(args: unknown): ReverseIvToolResult {
+export function normalizeReverseIvInput(args: unknown): SearchInput {
   const input = asRecord(args, "arguments");
   const speciesId = stringValue(input, "speciesId");
   getYokaiSpecies(speciesId);
@@ -361,7 +370,7 @@ export function reverseIvTool(args: unknown): ReverseIvToolResult {
     throw new TypeError("customScoreWeights is required when scorePreset is 'custom'");
   }
 
-  const normalized: SearchInput = {
+  return {
     speciesId,
     level,
     observed,
@@ -372,12 +381,22 @@ export function reverseIvTool(args: unknown): ReverseIvToolResult {
     ...(personalityBonus ? { personalityBonus } : {}),
     ...(customScoreWeights ? { customScoreWeights } : {}),
   };
+}
 
+export function buildReverseIvToolResult(
+  input: SearchInput,
+  response: SearchResponse,
+): ReverseIvToolResult {
   return {
-    species: speciesSummary(speciesId),
-    input: normalized,
-    response: reverseSearch(normalized),
+    species: speciesSummary(input.speciesId),
+    input,
+    response,
   };
+}
+
+export function reverseIvTool(args: unknown): ReverseIvToolResult {
+  const input = normalizeReverseIvInput(args);
+  return buildReverseIvToolResult(input, reverseSearch(input));
 }
 
 export function executeAgentTool(name: string, args: unknown): unknown {
@@ -389,7 +408,7 @@ export function executeAgentTool(name: string, args: unknown): unknown {
     case "calculate_stats":
       return calculateStatsTool(args);
     case "reverse_iv":
-      return reverseIvTool(args);
+      throw new Error("reverse_iv must be executed asynchronously");
     default:
       throw new RangeError("Unknown tool: " + name);
   }
