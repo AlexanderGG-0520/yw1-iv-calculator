@@ -20,6 +20,9 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          env:
+            - name: TRUST_CF_CONNECTING_IP
+              value: "true"
           resources:
             requests:
               cpu: 25m
