@@ -7,6 +7,7 @@ import { BoundedRateLimiter, clientIp } from "./safety";
 
 const PORT = Number(process.env.PORT ?? "80");
 const STATIC_ROOT = resolve(process.env.STATIC_ROOT ?? "/app/dist");
+const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN?.replace(/\/$/, "");
 const TRUST_CF_CONNECTING_IP = process.env.TRUST_CF_CONNECTING_IP === "true";
 const SERVER_INFO = { name: "yw1-iv-calculator", version: "0.1.0" };
 const MODERN_VERSION = "2026-07-28";
@@ -479,18 +480,12 @@ async function serveStatic(req, res, pathname) {
 }
 
 function publicOrigin(req) {
-  const forwardedProto = req.headers["x-forwarded-proto"];
-  const protocol =
-    typeof forwardedProto === "string"
-      ? forwardedProto.split(",")[0].trim()
-      : req.socket.encrypted
-        ? "https"
-        : "http";
-  const forwardedHost = req.headers["x-forwarded-host"];
-  const host =
-    typeof forwardedHost === "string"
-      ? forwardedHost.split(",")[0].trim()
-      : req.headers.host ?? "yw1-iv.alec-ofc.com";
+  if (PUBLIC_ORIGIN) {
+    return PUBLIC_ORIGIN;
+  }
+
+  const protocol = req.socket.encrypted ? "https" : "http";
+  const host = req.headers.host ?? "localhost";
   return protocol + "://" + host;
 }
 
