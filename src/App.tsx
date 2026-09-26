@@ -9,6 +9,7 @@ import { STAT_KEYS, type PersonalityMode, type ReverseResult, type ScorePreset, 
 import { YOKAI } from "./engine/yokaiData";
 import { sourceCharacteristicBonus, togenyanPortedEngine } from "./engine/calculationEngine";
 import { registerWebMcpTools } from "./webmcp";
+import { MAX_KNOWN_EVOLUTION_COUNT } from "./engine/patterns";
 
 type SortKey = "score" | StatKey;
 type SortDirection = "asc" | "desc";
@@ -273,8 +274,13 @@ function App() {
               label="進化回数"
               value={knownEvolutionCount}
               min={0}
+              max={MAX_KNOWN_EVOLUTION_COUNT}
               disabled={evolutionCountUnknown}
-              onChange={(value) => setKnownEvolutionCount(Math.max(0, Math.floor(value)))}
+              onChange={(value) =>
+                setKnownEvolutionCount(
+                  Math.min(MAX_KNOWN_EVOLUTION_COUNT, Math.max(0, Math.floor(value))),
+                )
+              }
             />
             <label className="inline-check">
               <input
