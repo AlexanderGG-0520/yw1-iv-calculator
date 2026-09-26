@@ -3,6 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { Worker } from "node:worker_threads";
 import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from "../src/agentTools";
+import { BoundedRateLimiter, clientIp } from "./safety";
 
 const PORT = Number(process.env.PORT ?? "8080");
 const STATIC_ROOT = resolve(process.env.STATIC_ROOT ?? "/app/dist");
@@ -12,8 +13,8 @@ const LEGACY_VERSION = "2025-11-25";
 const INSTRUCTIONS =
   "Yo-kai Watch 1 IV calculator. Use search_yokai to resolve species IDs, calculate_stats for forward calculation, and reverse_iv for observed-stat reverse calculation. IV_B_1 must total 10.";
 
-const generalRate = new Map();
-const reverseRate = new Map();
+const generalRate = new BoundedRateLimiter();
+const reverseRate = new BoundedRateLimiter();
 const MAX_REVERSE_WORKERS = 1;
 const REVERSE_TIMEOUT_MS = 15_000;
 let activeReverseWorkers = 0;
@@ -23,9 +24,9 @@ function runReverseIvInWorker(args) {
     return Promise.reject(new Error("reverse_iv server is busy; retry shortly"));
   }
 
-  activeReverseWorkers += 1;
-  return new Promise((resolvePromise, rejectPromise) => {
-    const worker = new Worker(
+  let worker;
+  try {
+    worker = new Worker(
       new URL("../dist-worker/reverseWorker.js", import.meta.url),
       {
         type: "module",
@@ -36,7 +37,12 @@ function runReverseIvInWorker(args) {
         },
       },
     );
+  } catch (error) {
+    return Promise.reject(error);
+  }
 
+  activeReverseWorkers += 1;
+  return new Promise((resolvePromise, rejectPromise) => {
     let settled = false;
     const finish = (callback, value) => {
       if (settled) return;
@@ -96,25 +102,6 @@ function writeJson(res, status, value, extra = {}) {
 function writeEmpty(res, status, extra = {}) {
   res.writeHead(status, jsonHeaders(extra));
   res.end();
-}
-
-function clientIp(req) {
-  const forwarded = req.headers["x-forwarded-for"];
-  if (typeof forwarded === "string" && forwarded.length > 0) {
-    return forwarded.split(",")[0].trim();
-  }
-  return req.socket.remoteAddress ?? "unknown";
-}
-
-function takeRate(map, key, limit, windowMs) {
-  const now = Date.now();
-  const current = map.get(key);
-  if (!current || current.resetAt <= now) {
-    map.set(key, { count: 1, resetAt: now + windowMs });
-    return true;
-  }
-  current.count += 1;
-  return current.count <= limit;
 }
 
 async function readJsonBody(req) {
@@ -202,7 +189,7 @@ async function handleMcp(req, res) {
   }
 
   const ip = clientIp(req);
-  if (!takeRate(generalRate, ip, 60, 60_000)) {
+  if (!generalRate.take(ip, 60, 60_000)) {
     writeJson(res, 429, rpcError(null, -32000, "Rate limit exceeded"));
     return;
   }
@@ -347,7 +334,7 @@ async function handleMcp(req, res) {
         return;
       }
 
-      if (name === "reverse_iv" && !takeRate(reverseRate, ip, 10, 60_000)) {
+      if (name === "reverse_iv" && !reverseRate.take(ip, 10, 60_000)) {
         writeJson(
           res,
           429,
@@ -572,6 +559,12 @@ const httpServer = createServer((req, res) => {
     res.end("Internal Server Error");
   });
 });
+
+const ratePruneTimer = setInterval(() => {
+  generalRate.prune();
+  reverseRate.prune();
+}, 60_000);
+ratePruneTimer.unref();
 
 httpServer.listen(PORT, "0.0.0.0", () => {
   console.log("yw1-iv-calculator listening on :" + PORT);
