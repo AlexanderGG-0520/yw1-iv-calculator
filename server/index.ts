@@ -14,7 +14,7 @@ const INSTRUCTIONS =
 
 const generalRate = new Map();
 const reverseRate = new Map();
-const MAX_REVERSE_WORKERS = 2;
+const MAX_REVERSE_WORKERS = 1;
 const REVERSE_TIMEOUT_MS = 15_000;
 let activeReverseWorkers = 0;
 
@@ -30,8 +30,8 @@ function runReverseIvInWorker(args) {
       {
         type: "module",
         resourceLimits: {
-          maxOldGenerationSizeMb: 128,
-          maxYoungGenerationSizeMb: 32,
+          maxOldGenerationSizeMb: 96,
+          maxYoungGenerationSizeMb: 16,
           stackSizeMb: 4,
         },
       },
