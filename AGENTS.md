@@ -7,7 +7,7 @@ This repository is intended for open-source distribution under the MIT License.
 ## Hard restrictions
 
 Do not:
-- configure Cloudflare
+- change Cloudflare account configuration through the API, Dashboard, DNS, Tunnel, Access, Workers, or other Cloudflare control-plane settings
 - deploy to any server
 - use SSH
 - use kubectl
@@ -28,6 +28,7 @@ Allowed:
 - add a first-party same-origin HTTP/MCP server that is built from this repository and shares the calculator engine
 - add Node worker_threads to isolate CPU-heavy MCP reverse searches from the HTTP event loop
 - add Dockerfile and Kubernetes manifests for packaging/GitOps, but do not deploy or apply them from repository automation agents
+- make application/runtime and Kubernetes manifest changes that interoperate with an already-existing Cloudflare Tunnel, including trusted-proxy CIDRs, NetworkPolicy rules for cloudflared, CF-Connecting-IP handling, and public-origin metadata, as long as they do not create or mutate Cloudflare resources
 - add compose.yml for local-only use
 - inspect public pages needed to understand Yo-kai Watch 1 stat calculation
 - commit changes locally
