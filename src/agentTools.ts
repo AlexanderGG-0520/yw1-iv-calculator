@@ -9,9 +9,11 @@ import {
   type EvolutionCount,
   type PersonalityMode,
   type ScorePreset,
+  type ReverseResult,
   type SearchInput,
   type SearchResponse,
   type StatBlock,
+  type StatKey,
 } from "./engine/types";
 import { YOKAI, getYokaiSpecies } from "./engine/yokaiData";
 
@@ -47,10 +49,49 @@ export interface CalculateStatsToolResult {
   formulaStatus: string;
 }
 
+export interface RoundTripMismatch {
+  observed: number;
+  recalculated: number;
+  /**
+   * recalculated - observed
+   */
+  delta: number;
+}
+
+export interface ReverseCandidateVerification {
+  method: "same_engine_forward_round_trip";
+  exactMatch: boolean;
+  matchedStatCount: number;
+  matchedStats: StatKey[];
+  recalculated: StatBlock;
+  mismatches: Partial<Record<StatKey, RoundTripMismatch>>;
+}
+
+export type VerifiedReverseResult = ReverseResult & {
+  verification: ReverseCandidateVerification;
+};
+
+export type VerifiedSearchResponse = Omit<SearchResponse, "results"> & {
+  results: VerifiedReverseResult[];
+};
+
+export interface ReverseRoundTripVerificationSummary {
+  method: "same_engine_forward_round_trip";
+  checkedReturnedCandidateCount: number;
+  exactMatchReturnedCandidateCount: number;
+  allReturnedCandidatesExactMatch: boolean;
+  /**
+   * Exactly one valid candidate was found in the complete search space for
+   * the supplied input constraints.
+   */
+  uniqueCandidate: boolean;
+}
+
 export interface ReverseIvToolResult {
   species: { id: string; number?: number; name: string };
   input: SearchInput;
-  response: SearchResponse;
+  response: VerifiedSearchResponse;
+  verification: ReverseRoundTripVerificationSummary;
 }
 
 const personalityModes: PersonalityMode[] = [
@@ -408,14 +449,79 @@ export function normalizeReverseIvInput(args: unknown): SearchInput {
   };
 }
 
+function verifyReverseCandidate(
+  input: SearchInput,
+  candidate: ReverseResult,
+): ReverseCandidateVerification {
+  const recalculated = calculateStatBlock({
+    speciesId: input.speciesId,
+    level: input.level,
+    ivA: candidate.ivA,
+    ivB1: candidate.ivB1,
+    ivB2: candidate.ivB2,
+    personalityMode: input.personalityMode,
+    ...(input.personalityBonus ? { personalityBonus: input.personalityBonus } : {}),
+  });
+
+  const matchedStats: StatKey[] = [];
+  const mismatches: Partial<Record<StatKey, RoundTripMismatch>> = {};
+
+  for (const stat of STAT_KEYS) {
+    const observed = input.observed[stat];
+    const recalculatedValue = recalculated[stat];
+    if (recalculatedValue === observed) {
+      matchedStats.push(stat);
+      continue;
+    }
+
+    mismatches[stat] = {
+      observed,
+      recalculated: recalculatedValue,
+      delta: recalculatedValue - observed,
+    };
+  }
+
+  return {
+    method: "same_engine_forward_round_trip",
+    exactMatch: matchedStats.length === STAT_KEYS.length,
+    matchedStatCount: matchedStats.length,
+    matchedStats,
+    recalculated,
+    mismatches,
+  };
+}
+
 export function buildReverseIvToolResult(
   input: SearchInput,
   response: SearchResponse,
 ): ReverseIvToolResult {
+  const results = response.results.map((candidate) => ({
+    ...candidate,
+    verification: verifyReverseCandidate(input, candidate),
+  }));
+
+  const checkedReturnedCandidateCount = results.length;
+  const exactMatchReturnedCandidateCount = results.filter(
+    (candidate) => candidate.verification.exactMatch,
+  ).length;
+
   return {
     species: speciesSummary(input.speciesId),
     input,
-    response,
+    response: {
+      ...response,
+      results,
+    },
+    verification: {
+      method: "same_engine_forward_round_trip",
+      checkedReturnedCandidateCount,
+      exactMatchReturnedCandidateCount,
+      allReturnedCandidatesExactMatch:
+        checkedReturnedCandidateCount > 0 &&
+        exactMatchReturnedCandidateCount === checkedReturnedCandidateCount,
+      uniqueCandidate:
+        response.summary.validCandidateCount === 1 && !response.summary.truncated,
+    },
   };
 }
 

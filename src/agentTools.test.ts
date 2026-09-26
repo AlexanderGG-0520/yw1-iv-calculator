@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AGENT_TOOL_DEFINITIONS,
+  buildReverseIvToolResult,
   calculateStatsTool,
   executeAgentTool,
   reverseIvTool,
@@ -61,7 +62,7 @@ describe("agent tools", () => {
     expect(ivB2?.properties?.hp?.maximum).toBe(15);
   });
 
-  it("reverse_iv round-trips a forward-calculated candidate", () => {
+  it("reverse_iv round-trips returned candidates through the forward engine", () => {
     const input = {
       speciesId: "jibanyan",
       level: 20,
@@ -82,14 +83,169 @@ describe("agent tools", () => {
     });
 
     expect(result.response.summary.validCandidateCount).toBeGreaterThan(0);
+    const matchingCandidate = result.response.results.find(
+      (candidate) =>
+        JSON.stringify(candidate.ivA) === JSON.stringify(input.ivA) &&
+        JSON.stringify(candidate.ivB1) === JSON.stringify(input.ivB1) &&
+        JSON.stringify(candidate.ivB2) === JSON.stringify(input.ivB2),
+    );
+    expect(matchingCandidate).toBeDefined();
+    expect(matchingCandidate?.verification).toEqual({
+      method: "same_engine_forward_round_trip",
+      exactMatch: true,
+      matchedStatCount: 5,
+      matchedStats: ["hp", "strength", "spirit", "defense", "speed"],
+      recalculated: observed,
+      mismatches: {},
+    });
+    expect(result.verification.checkedReturnedCandidateCount).toBe(
+      result.response.results.length,
+    );
+    expect(result.verification.exactMatchReturnedCandidateCount).toBe(
+      result.response.results.length,
+    );
+    expect(result.verification.allReturnedCandidatesExactMatch).toBe(true);
+  });
+
+  it("recalculates candidates instead of trusting reverseSearch calculated values", () => {
+    const candidateInput = {
+      speciesId: "jibanyan",
+      level: 20,
+      ivA: zero,
+      ivB1: balancedB1,
+      ivB2: zero,
+      personalityMode: "none" as const,
+    };
+    const recalculated = calculateStatBlock(candidateInput);
+    const observed = { ...recalculated, defense: recalculated.defense + 1 };
+    const input = {
+      speciesId: candidateInput.speciesId,
+      level: candidateInput.level,
+      observed,
+      personalityMode: candidateInput.personalityMode,
+      evolutionCount: 0 as const,
+      scorePreset: "balanced" as const,
+      maxResults: 20,
+    };
+
+    const result = buildReverseIvToolResult(input, {
+      results: [
+        {
+          id: "1",
+          score: 0,
+          ivA: zero,
+          ivB1: balancedB1,
+          ivB2: zero,
+          // Deliberately claim the search-side calculation matched observed.
+          calculated: observed,
+        },
+      ],
+      summary: {
+        perStatCandidateCounts: zero,
+        combinationsVisited: 1,
+        validCandidateCount: 2,
+        truncated: false,
+        formulaStatus: "test",
+      },
+    });
+
+    expect(result.response.results[0].verification).toEqual({
+      method: "same_engine_forward_round_trip",
+      exactMatch: false,
+      matchedStatCount: 4,
+      matchedStats: ["hp", "strength", "spirit", "speed"],
+      recalculated,
+      mismatches: {
+        defense: {
+          observed: observed.defense,
+          recalculated: recalculated.defense,
+          delta: -1,
+        },
+      },
+    });
+    expect(result.verification).toMatchObject({
+      checkedReturnedCandidateCount: 1,
+      exactMatchReturnedCandidateCount: 0,
+      allReturnedCandidatesExactMatch: false,
+      uniqueCandidate: false,
+    });
+  });
+
+  it("only reports a unique candidate for a complete one-candidate search", () => {
+    const input = {
+      speciesId: "jibanyan",
+      level: 20,
+      observed: calculateStatBlock({
+        speciesId: "jibanyan",
+        level: 20,
+        ivA: zero,
+        ivB1: balancedB1,
+        ivB2: zero,
+        personalityMode: "none",
+      }),
+      personalityMode: "none" as const,
+      evolutionCount: 0 as const,
+      scorePreset: "balanced" as const,
+      maxResults: 20,
+    };
+    const candidate = {
+      id: "1",
+      score: 0,
+      ivA: zero,
+      ivB1: balancedB1,
+      ivB2: zero,
+      calculated: input.observed,
+    };
+    const summary = {
+      perStatCandidateCounts: zero,
+      combinationsVisited: 1,
+      validCandidateCount: 1,
+      formulaStatus: "test",
+    };
+
     expect(
-      result.response.results.some(
-        (candidate) =>
-          JSON.stringify(candidate.ivA) === JSON.stringify(input.ivA) &&
-          JSON.stringify(candidate.ivB1) === JSON.stringify(input.ivB1) &&
-          JSON.stringify(candidate.ivB2) === JSON.stringify(input.ivB2),
-      ),
+      buildReverseIvToolResult(input, {
+        results: [candidate],
+        summary: { ...summary, truncated: false },
+      }).verification.uniqueCandidate,
     ).toBe(true);
+
+    expect(
+      buildReverseIvToolResult(input, {
+        results: [candidate],
+        summary: { ...summary, truncated: true },
+      }).verification.uniqueCandidate,
+    ).toBe(false);
+  });
+
+  it("does not claim all returned candidates matched when no candidate was checked", () => {
+    const input = {
+      speciesId: "jibanyan",
+      level: 20,
+      observed: { hp: 1, strength: 1, spirit: 1, defense: 1, speed: 1 },
+      personalityMode: "none" as const,
+      evolutionCount: 0 as const,
+      scorePreset: "balanced" as const,
+      maxResults: 20,
+    };
+
+    const result = buildReverseIvToolResult(input, {
+      results: [],
+      summary: {
+        perStatCandidateCounts: zero,
+        combinationsVisited: 0,
+        validCandidateCount: 0,
+        truncated: false,
+        formulaStatus: "test",
+      },
+    });
+
+    expect(result.verification).toMatchObject({
+      checkedReturnedCandidateCount: 0,
+      exactMatchReturnedCandidateCount: 0,
+      allReturnedCandidatesExactMatch: false,
+      uniqueCandidate: false,
+    });
   });
 
   it("rejects oversized evolution counts before reverse search", () => {
