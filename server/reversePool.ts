@@ -171,3 +171,18 @@ export function requestDisconnectSignal(
     },
   };
 }
+
+
+export async function runReverseForRequest(
+  pool: ReverseWorkerPool,
+  args: unknown,
+  req: Parameters<typeof requestDisconnectSignal>[0],
+  res: Parameters<typeof requestDisconnectSignal>[1],
+): Promise<unknown> {
+  const disconnect = requestDisconnectSignal(req, res);
+  try {
+    return await pool.run(args, disconnect.signal);
+  } finally {
+    disconnect.cleanup();
+  }
+}
