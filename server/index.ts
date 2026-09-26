@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
+import { Worker } from "node:worker_threads";
 import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from "../src/agentTools";
 
 const PORT = Number(process.env.PORT ?? "8080");
@@ -13,6 +14,63 @@ const INSTRUCTIONS =
 
 const generalRate = new Map();
 const reverseRate = new Map();
+const MAX_REVERSE_WORKERS = 2;
+const REVERSE_TIMEOUT_MS = 15_000;
+let activeReverseWorkers = 0;
+
+function runReverseIvInWorker(args) {
+  if (activeReverseWorkers >= MAX_REVERSE_WORKERS) {
+    return Promise.reject(new Error("reverse_iv server is busy; retry shortly"));
+  }
+
+  activeReverseWorkers += 1;
+  return new Promise((resolvePromise, rejectPromise) => {
+    const worker = new Worker(
+      new URL("../dist-worker/reverseWorker.js", import.meta.url),
+      {
+        type: "module",
+        resourceLimits: {
+          maxOldGenerationSizeMb: 128,
+          maxYoungGenerationSizeMb: 32,
+          stackSizeMb: 4,
+        },
+      },
+    );
+
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      activeReverseWorkers -= 1;
+      clearTimeout(timer);
+      void worker.terminate();
+      callback(value);
+    };
+
+    const timer = setTimeout(() => {
+      finish(rejectPromise, new Error("reverse_iv exceeded the 15 second execution limit"));
+    }, REVERSE_TIMEOUT_MS);
+
+    worker.once("message", (message) => {
+      if (message?.type === "success") {
+        finish(resolvePromise, message.result);
+        return;
+      }
+      finish(
+        rejectPromise,
+        new Error(message?.error ?? "reverse_iv worker returned an invalid response"),
+      );
+    });
+    worker.once("error", (error) => finish(rejectPromise, error));
+    worker.once("exit", (code) => {
+      if (!settled && code !== 0) {
+        finish(rejectPromise, new Error("reverse_iv worker exited with code " + code));
+      }
+    });
+
+    worker.postMessage(args);
+  });
+}
 
 function jsonHeaders(extra = {}) {
   return {
@@ -301,7 +359,10 @@ async function handleMcp(req, res) {
 
       let toolResult;
       try {
-        toolResult = executeAgentTool(name, args);
+        toolResult =
+          name === "reverse_iv"
+            ? await runReverseIvInWorker(args)
+            : executeAgentTool(name, args);
       } catch (error) {
         const messageText =
           error instanceof Error ? error.message : "Tool execution failed";
@@ -445,9 +506,19 @@ function publicOrigin(req) {
   return protocol + "://" + host;
 }
 
-const httpServer = createServer(async (req, res) => {
-  const url = new URL(req.url ?? "/", "http://localhost");
-  const pathname = decodeURIComponent(url.pathname);
+async function handleHttpRequest(req, res) {
+  let pathname;
+  try {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    pathname = decodeURIComponent(url.pathname);
+  } catch (error) {
+    res.writeHead(400, {
+      "content-type": "text/plain; charset=utf-8",
+      "cache-control": "no-store",
+    });
+    res.end("Bad Request");
+    return;
+  }
 
   if (pathname === "/healthz") {
     const body = "ok\n";
@@ -487,6 +558,19 @@ const httpServer = createServer(async (req, res) => {
   }
 
   await serveStatic(req, res, pathname);
+}
+
+const httpServer = createServer((req, res) => {
+  void handleHttpRequest(req, res).catch((error) => {
+    console.error("Unhandled request error", error);
+    if (!res.headersSent) {
+      res.writeHead(500, {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "no-store",
+      });
+    }
+    res.end("Internal Server Error");
+  });
 });
 
 httpServer.listen(PORT, "0.0.0.0", () => {
