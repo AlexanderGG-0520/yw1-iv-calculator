@@ -13,9 +13,15 @@ describe("GitOps staged runtime migration", () => {
     expect(manifest).not.toContain("runAsNonRoot: true");
   });
 
-  it("does not enable unverified Cloudflare client-IP header trust in the manifest", async () => {
+  it("trusts forwarded client IP only with a CIDR gate and proxy-only NetworkPolicy", async () => {
     const manifest = await readFile("infra/kubernetes/app.yaml", "utf8");
     expect(manifest).not.toContain("TRUST_CF_CONNECTING_IP");
+    expect(manifest).toContain("TRUSTED_PROXY_CIDRS");
+    expect(manifest).toContain('value: "10.244.0.0/16"');
+    expect(manifest).toContain("kind: NetworkPolicy");
+    expect(manifest).toContain("kubernetes.io/metadata.name: cloudflared");
+    expect(manifest).toContain("kubernetes.io/metadata.name: ingress-nginx");
+    expect(manifest).toContain("kubernetes.io/metadata.name: envoy-gateway-system");
   });
 
   it("builds the replacement runtime with the same port-80 contract", async () => {
