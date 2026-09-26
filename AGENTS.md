@@ -16,7 +16,7 @@ Do not:
 - read .env files
 - add telemetry
 - add analytics
-- add external backend services
+- add third-party or separately operated backend services, databases, or hosted data stores
 - pretend the Yo-kai Watch 1 formula is complete if it is not verified
 - copy or port third-party code/data without preserving attribution and applicable license notices
 - remove the unofficial-project disclaimer or imply endorsement by Yo-kai Watch rights holders
@@ -24,8 +24,10 @@ Do not:
 Allowed:
 - create and maintain the React + Vite + TypeScript app
 - add Vitest tests
-- add a Web Worker for reverse search
-- add Dockerfile for local build only
+- add Web Workers for browser-side reverse search
+- add a first-party same-origin HTTP/MCP server that is built from this repository and shares the calculator engine
+- add Node worker_threads to isolate CPU-heavy MCP reverse searches from the HTTP event loop
+- add Dockerfile and Kubernetes manifests for packaging/GitOps, but do not deploy or apply them from repository automation agents
 - add compose.yml for local-only use
 - inspect public pages needed to understand Yo-kai Watch 1 stat calculation
 - commit changes locally
