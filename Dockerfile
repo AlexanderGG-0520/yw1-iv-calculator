@@ -15,6 +15,7 @@ ENV STATIC_ROOT=/app/dist
 
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/dist-server ./dist-server
+COPY --from=build /app/dist-worker ./dist-worker
 
 USER node
 EXPOSE 8080
