@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   requestDisconnectSignal,
   ReverseWorkerPool,
+  runReverseForRequest,
   type ReverseWorkerLike,
 } from "./reversePool";
 
@@ -22,8 +23,17 @@ class FakeWorker extends EventEmitter {
   }
 }
 
+function fakeRequestResponse() {
+  const req = new EventEmitter();
+  const res = new EventEmitter() as EventEmitter & {
+    writableEnded: boolean;
+  };
+  res.writableEnded = false;
+  return { req, res };
+}
+
 describe("reverse worker pool cancellation", () => {
-  it("releases the only worker slot immediately after abort so the next reverse can run", async () => {
+  it("releases the only slot immediately when the MCP response disconnects, then accepts the next reverse", async () => {
     const workers: FakeWorker[] = [];
     const pool = new ReverseWorkerPool(
       () => {
@@ -35,17 +45,31 @@ describe("reverse worker pool cancellation", () => {
       15_000,
     );
 
-    const controller = new AbortController();
-    const first = pool.run({ request: 1 }, controller.signal);
+    const firstHttp = fakeRequestResponse();
+    const first = runReverseForRequest(
+      pool,
+      { request: 1 },
+      firstHttp.req as never,
+      firstHttp.res as never,
+    );
     expect(pool.active).toBe(1);
+    expect(workers[0].posted).toEqual([{ request: 1 }]);
 
-    controller.abort();
+    firstHttp.res.emit("close");
 
     await expect(first).rejects.toMatchObject({ name: "AbortError" });
     expect(pool.active).toBe(0);
     expect(workers[0].terminated).toBe(true);
+    expect(firstHttp.req.listenerCount("aborted")).toBe(0);
+    expect(firstHttp.res.listenerCount("close")).toBe(0);
 
-    const second = pool.run({ request: 2 });
+    const secondHttp = fakeRequestResponse();
+    const second = runReverseForRequest(
+      pool,
+      { request: 2 },
+      secondHttp.req as never,
+      secondHttp.res as never,
+    );
     expect(pool.active).toBe(1);
     expect(workers[1].posted).toEqual([{ request: 2 }]);
 
@@ -54,30 +78,35 @@ describe("reverse worker pool cancellation", () => {
     await expect(second).resolves.toBe("ok");
     expect(pool.active).toBe(0);
     expect(workers[1].terminated).toBe(true);
+    expect(secondHttp.req.listenerCount("aborted")).toBe(0);
+    expect(secondHttp.res.listenerCount("close")).toBe(0);
   });
 
-  it("turns an unfinished response close into an AbortSignal and cleans listeners", () => {
-    const req = new EventEmitter();
-    const res = new EventEmitter() as EventEmitter & { writableEnded: boolean };
-    res.writableEnded = false;
+  it("also aborts when the request itself is aborted", async () => {
+    const worker = new FakeWorker();
+    const pool = new ReverseWorkerPool(
+      () => worker as unknown as ReverseWorkerLike,
+      1,
+      15_000,
+    );
+    const http = fakeRequestResponse();
 
-    const disconnect = requestDisconnectSignal(
-      req as never,
-      res as never,
+    const pending = runReverseForRequest(
+      pool,
+      { request: 1 },
+      http.req as never,
+      http.res as never,
     );
 
-    expect(disconnect.signal.aborted).toBe(false);
-    res.emit("close");
-    expect(disconnect.signal.aborted).toBe(true);
+    http.req.emit("aborted");
 
-    disconnect.cleanup();
-    expect(req.listenerCount("aborted")).toBe(0);
-    expect(res.listenerCount("close")).toBe(0);
+    await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    expect(pool.active).toBe(0);
+    expect(worker.terminated).toBe(true);
   });
 
   it("does not abort on the normal close event after the response has ended", () => {
-    const req = new EventEmitter();
-    const res = new EventEmitter() as EventEmitter & { writableEnded: boolean };
+    const { req, res } = fakeRequestResponse();
     res.writableEnded = true;
 
     const disconnect = requestDisconnectSignal(
@@ -88,5 +117,7 @@ describe("reverse worker pool cancellation", () => {
     res.emit("close");
     expect(disconnect.signal.aborted).toBe(false);
     disconnect.cleanup();
+    expect(req.listenerCount("aborted")).toBe(0);
+    expect(res.listenerCount("close")).toBe(0);
   });
 });
