@@ -67,6 +67,24 @@ describe("agent tools", () => {
     ).toBe(true);
   });
 
+  it("rejects oversized evolution counts before reverse search", () => {
+    expect(() =>
+      reverseIvTool({
+        speciesId: "jibanyan",
+        level: 20,
+        observed: { hp: 80, strength: 60, spirit: 45, defense: 45, speed: 58 },
+        personalityMode: "none",
+        evolutionCount: 6,
+        scorePreset: "balanced",
+        maxResults: 20,
+      }),
+    ).toThrow(/0 to 5/);
+  });
+
+  it("prevents reverse_iv from using the synchronous dispatcher", () => {
+    expect(() => executeAgentTool("reverse_iv", {})).toThrow(/asynchronously/);
+  });
+
   it("rejects unknown tools", () => {
     expect(() => executeAgentTool("does_not_exist", {})).toThrow(/Unknown tool/);
   });
