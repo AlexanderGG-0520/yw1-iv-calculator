@@ -20,6 +20,9 @@ spec:
           ports:
             - name: http
               containerPort: 80
+          env:
+            - name: PUBLIC_ORIGIN
+              value: "https://yw1-iv.alec-ofc.com"
           resources:
             requests:
               cpu: 25m
