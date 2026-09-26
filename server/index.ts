@@ -1,9 +1,9 @@
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
-import { Worker } from "node:worker_threads";
 import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from "../src/agentTools";
 import { BoundedRateLimiter, clientIp, TrustedProxyCidrs } from "./safety";
+import { requestDisconnectSignal, ReverseWorkerPool } from "./reversePool";
 
 const PORT = Number(process.env.PORT ?? "80");
 const STATIC_ROOT = resolve(process.env.STATIC_ROOT ?? "/app/dist");
@@ -17,68 +17,7 @@ const INSTRUCTIONS =
 
 const generalRate = new BoundedRateLimiter();
 const reverseRate = new BoundedRateLimiter();
-const MAX_REVERSE_WORKERS = 1;
-const REVERSE_TIMEOUT_MS = 15_000;
-let activeReverseWorkers = 0;
-
-function runReverseIvInWorker(args) {
-  if (activeReverseWorkers >= MAX_REVERSE_WORKERS) {
-    return Promise.reject(new Error("reverse_iv server is busy; retry shortly"));
-  }
-
-  let worker;
-  try {
-    worker = new Worker(
-      new URL("../dist-worker/reverseWorker.js", import.meta.url),
-      {
-        type: "module",
-        resourceLimits: {
-          maxOldGenerationSizeMb: 96,
-          maxYoungGenerationSizeMb: 16,
-          stackSizeMb: 4,
-        },
-      },
-    );
-  } catch (error) {
-    return Promise.reject(error);
-  }
-
-  activeReverseWorkers += 1;
-  return new Promise((resolvePromise, rejectPromise) => {
-    let settled = false;
-    const finish = (callback, value) => {
-      if (settled) return;
-      settled = true;
-      activeReverseWorkers -= 1;
-      clearTimeout(timer);
-      void worker.terminate();
-      callback(value);
-    };
-
-    const timer = setTimeout(() => {
-      finish(rejectPromise, new Error("reverse_iv exceeded the 15 second execution limit"));
-    }, REVERSE_TIMEOUT_MS);
-
-    worker.once("message", (message) => {
-      if (message?.type === "success") {
-        finish(resolvePromise, message.result);
-        return;
-      }
-      finish(
-        rejectPromise,
-        new Error(message?.error ?? "reverse_iv worker returned an invalid response"),
-      );
-    });
-    worker.once("error", (error) => finish(rejectPromise, error));
-    worker.once("exit", (code) => {
-      if (!settled && code !== 0) {
-        finish(rejectPromise, new Error("reverse_iv worker exited with code " + code));
-      }
-    });
-
-    worker.postMessage(args);
-  });
-}
+const reverseWorkers = new ReverseWorkerPool();
 
 function jsonHeaders(extra = {}) {
   return {
@@ -347,12 +286,25 @@ async function handleMcp(req, res) {
       }
 
       let toolResult;
+      let disconnect:
+        | { signal: AbortSignal; cleanup: () => void }
+        | undefined;
       try {
-        toolResult =
-          name === "reverse_iv"
-            ? await runReverseIvInWorker(args)
-            : executeAgentTool(name, args);
+        if (name === "reverse_iv") {
+          disconnect = requestDisconnectSignal(req, res);
+          toolResult = await reverseWorkers.run(args, disconnect.signal);
+        } else {
+          toolResult = executeAgentTool(name, args);
+        }
       } catch (error) {
+        if (
+          disconnect?.signal.aborted ||
+          res.destroyed ||
+          (error instanceof Error && error.name === "AbortError")
+        ) {
+          return;
+        }
+
         const messageText =
           error instanceof Error ? error.message : "Tool execution failed";
         const result = {
@@ -371,6 +323,8 @@ async function handleMcp(req, res) {
           protocolHeaders,
         );
         return;
+      } finally {
+        disconnect?.cleanup();
       }
 
       const result = {
