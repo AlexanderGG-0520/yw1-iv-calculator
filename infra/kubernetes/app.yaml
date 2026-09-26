@@ -19,14 +19,14 @@ spec:
           image: ghcr.io/alexandergg-0520/yw1-iv-calculator:954b84ce80fcc0bdaa4da6a0fb91a0054facc880
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 8080
           resources:
             requests:
-              cpu: 10m
-              memory: 16Mi
+              cpu: 25m
+              memory: 32Mi
             limits:
-              cpu: 200m
-              memory: 128Mi
+              cpu: 500m
+              memory: 256Mi
           readinessProbe:
             httpGet:
               path: /healthz
@@ -39,6 +39,14 @@ spec:
               port: http
             initialDelaySeconds: 10
             periodSeconds: 30
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
 ---
 apiVersion: v1
 kind: Service
