@@ -1,9 +1,12 @@
 import {
   AGENT_TOOL_DEFINITIONS,
+  buildReverseIvToolResult,
   executeAgentTool,
+  normalizeReverseIvInput,
   type CalculateStatsToolResult,
   type ReverseIvToolResult,
 } from "./agentTools";
+import type { WorkerResponse } from "./workers/reverseSearch.worker";
 
 interface WebMcpModelContext {
   registerTool(
@@ -18,7 +21,10 @@ interface WebMcpModelContext {
         untrustedContentHint?: boolean;
         debugging?: boolean;
       };
-      execute: (input: Record<string, unknown>) => unknown | Promise<unknown>;
+      execute: (
+        input: Record<string, unknown>,
+        context?: { signal?: AbortSignal },
+      ) => unknown | Promise<unknown>;
     },
     options?: { signal?: AbortSignal },
   ): void | Promise<void>;
@@ -52,15 +58,52 @@ export function registerWebMcpTools(actions: WebMcpUiActions): () => void {
           untrustedContentHint: false,
           debugging: false,
         },
-        execute: async (input: Record<string, unknown>) => {
-          const result = executeAgentTool(definition.name, input);
+        execute: async (
+          input: Record<string, unknown>,
+          context?: { signal?: AbortSignal },
+        ) => {
+          if (definition.name === "reverse_iv") {
+            const normalized = normalizeReverseIvInput(input);
+            const worker = new Worker(
+              new URL("./workers/reverseSearch.worker.ts", import.meta.url),
+              { type: "module" },
+            );
 
-          if (definition.name === "calculate_stats") {
-            actions.showForward(result as CalculateStatsToolResult);
-          } else if (definition.name === "reverse_iv") {
-            actions.showReverse(result as ReverseIvToolResult);
+            const response = await new Promise<WorkerResponse>((resolve, reject) => {
+              const cleanup = () => {
+                context?.signal?.removeEventListener("abort", onAbort);
+                worker.terminate();
+              };
+              const onAbort = () => {
+                cleanup();
+                reject(new DOMException("reverse_iv was aborted", "AbortError"));
+              };
+
+              worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
+                cleanup();
+                resolve(event.data);
+              };
+              worker.onerror = (event) => {
+                cleanup();
+                reject(new Error(event.message || "reverse_iv worker failed"));
+              };
+              context?.signal?.addEventListener("abort", onAbort, { once: true });
+              worker.postMessage({ type: "search", payload: normalized });
+            });
+
+            if (response.type === "error") {
+              throw new Error(response.error);
+            }
+
+            const result = buildReverseIvToolResult(normalized, response.payload);
+            actions.showReverse(result);
+            return JSON.stringify(result);
           }
 
+          const result = executeAgentTool(definition.name, input);
+          if (definition.name === "calculate_stats") {
+            actions.showForward(result as CalculateStatsToolResult);
+          }
           return JSON.stringify(result);
         },
       },
