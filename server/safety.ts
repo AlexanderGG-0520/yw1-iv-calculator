@@ -1,4 +1,4 @@
-import { isIP } from "node:net";
+import { BlockList, isIP } from "node:net";
 
 export const MAX_RATE_LIMIT_KEYS = 4096;
 
@@ -62,13 +62,83 @@ export class BoundedRateLimiter {
   }
 }
 
-function validIpHeader(value: unknown): string | undefined {
+type IpFamily = "ipv4" | "ipv6";
+
+function normalizeIp(value: unknown): { address: string; family: IpFamily } | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
 
-  const candidate = value.trim();
-  return isIP(candidate) ? candidate : undefined;
+  let candidate = value.trim();
+  if (!candidate) {
+    return undefined;
+  }
+
+  if (candidate.startsWith("::ffff:")) {
+    const mapped = candidate.slice("::ffff:".length);
+    if (isIP(mapped) === 4) {
+      return { address: mapped, family: "ipv4" };
+    }
+  }
+
+  const version = isIP(candidate);
+  if (version === 4) {
+    return { address: candidate, family: "ipv4" };
+  }
+  if (version === 6) {
+    return { address: candidate, family: "ipv6" };
+  }
+  return undefined;
+}
+
+export class TrustedProxyCidrs {
+  private readonly blockList = new BlockList();
+  private readonly configured: boolean;
+
+  constructor(raw: string | undefined) {
+    const cidrs = (raw ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    this.configured = cidrs.length > 0;
+
+    for (const cidr of cidrs) {
+      const separator = cidr.lastIndexOf("/");
+      const network = separator >= 0 ? cidr.slice(0, separator) : cidr;
+      const normalized = normalizeIp(network);
+      if (!normalized) {
+        throw new RangeError("Invalid trusted proxy CIDR address: " + cidr);
+      }
+
+      const defaultPrefix = normalized.family === "ipv4" ? 32 : 128;
+      const prefixText = separator >= 0 ? cidr.slice(separator + 1) : String(defaultPrefix);
+      const prefix = Number(prefixText);
+      const maxPrefix = normalized.family === "ipv4" ? 32 : 128;
+
+      if (!Number.isInteger(prefix) || prefix < 0 || prefix > maxPrefix) {
+        throw new RangeError("Invalid trusted proxy CIDR prefix: " + cidr);
+      }
+
+      this.blockList.addSubnet(normalized.address, prefix, normalized.family);
+    }
+  }
+
+  get enabled(): boolean {
+    return this.configured;
+  }
+
+  matches(value: unknown): boolean {
+    const normalized = normalizeIp(value);
+    if (!normalized) {
+      return false;
+    }
+    return this.blockList.check(normalized.address, normalized.family);
+  }
+}
+
+function validClientIpHeader(value: unknown): string | undefined {
+  return normalizeIp(value)?.address;
 }
 
 export function clientIp(
@@ -76,15 +146,19 @@ export function clientIp(
     headers: Record<string, unknown>;
     socket: { remoteAddress?: string | null };
   },
-  trustCloudflareHeader = false,
+  trustedProxies: TrustedProxyCidrs,
 ): string {
-  if (trustCloudflareHeader) {
-    const cloudflareIp = validIpHeader(req.headers["cf-connecting-ip"]);
+  const peer = normalizeIp(req.socket.remoteAddress);
+  if (!peer) {
+    return "unknown";
+  }
+
+  if (trustedProxies.matches(peer.address)) {
+    const cloudflareIp = validClientIpHeader(req.headers["cf-connecting-ip"]);
     if (cloudflareIp) {
       return cloudflareIp;
     }
   }
 
-  const socketIp = validIpHeader(req.socket.remoteAddress);
-  return socketIp ?? "unknown";
+  return peer.address;
 }
