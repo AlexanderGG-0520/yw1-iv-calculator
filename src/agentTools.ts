@@ -2,7 +2,7 @@ import { togenyanPortedEngine } from "./engine/calculationEngine";
 import { calculateStatBlock } from "./engine/forwardCalculation";
 import { ivAMaxForSpeciesStat } from "./engine/ivA";
 import { reverseSearch } from "./engine/reverseSearch";
-import { MAX_KNOWN_EVOLUTION_COUNT } from "./engine/patterns";
+import { MAX_IV_B2, MAX_KNOWN_EVOLUTION_COUNT } from "./engine/patterns";
 import { BUILT_IN_SCORE_PROFILES } from "./engine/scoring";
 import {
   STAT_KEYS,
@@ -83,6 +83,18 @@ const statBlockSchema: JsonSchema = {
   required: [...STAT_KEYS],
 };
 
+const ivB2Schema: JsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: Object.fromEntries(
+    STAT_KEYS.map((stat) => [
+      stat,
+      { type: "integer", minimum: 0, maximum: MAX_IV_B2 },
+    ]),
+  ),
+  required: [...STAT_KEYS],
+};
+
 const annotations = {
   readOnlyHint: true,
   idempotentHint: true,
@@ -134,7 +146,7 @@ export const AGENT_TOOL_DEFINITIONS: AgentToolDefinition[] = [
         level: { type: "integer", minimum: 1, maximum: 99 },
         ivA: statBlockSchema,
         ivB1: statBlockSchema,
-        ivB2: statBlockSchema,
+        ivB2: ivB2Schema,
         personalityMode: { type: "string", enum: personalityModes },
         personalityBonus: statBlockSchema,
       },
@@ -216,13 +228,26 @@ function integerValue(
   return number;
 }
 
-function statBlockValue(value: unknown, name: string, minimum = 0): StatBlock {
+function statBlockValue(
+  value: unknown,
+  name: string,
+  minimum = 0,
+  maximum?: number,
+): StatBlock {
   const object = asRecord(value, name);
   return Object.fromEntries(
     STAT_KEYS.map((stat) => {
       const statValue = object[stat];
-      if (!Number.isInteger(statValue) || (statValue as number) < minimum) {
-        throw new TypeError(name + "." + stat + " must be an integer >= " + minimum);
+      if (
+        !Number.isInteger(statValue) ||
+        (statValue as number) < minimum ||
+        (maximum !== undefined && (statValue as number) > maximum)
+      ) {
+        const range =
+          maximum === undefined
+            ? ">= " + minimum
+            : "from " + minimum + " to " + maximum;
+        throw new RangeError(name + "." + stat + " must be an integer " + range);
       }
       return [stat, statValue as number];
     }),
@@ -316,7 +341,7 @@ export function calculateStatsTool(args: unknown): CalculateStatsToolResult {
   const level = integerValue(input, "level", { min: 1, max: 99 });
   const ivA = statBlockValue(input.ivA, "ivA");
   const ivB1 = statBlockValue(input.ivB1, "ivB1");
-  const ivB2 = statBlockValue(input.ivB2, "ivB2");
+  const ivB2 = statBlockValue(input.ivB2, "ivB2", 0, MAX_IV_B2);
   const personalityMode = personalityModeValue(input);
   const personalityBonus = optionalStatBlock(input, "personalityBonus");
 
