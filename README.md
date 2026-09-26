@@ -118,6 +118,39 @@
 
 詳細は [`docs/togenyan-source-notes.md`](docs/togenyan-source-notes.md) を参照してください。
 
+## AIエージェント連携
+
+このサイトは、人間向けUIに加えてAIエージェント向けの構造化ツールを公開します。
+
+### WebMCP
+
+WebMCP対応ブラウザでは `document.modelContext` に次のツールを登録します。
+
+- `search_yokai`: 妖怪名・ふりがな・番号・内部IDから検索
+- `get_yokai`: 妖怪の計算用データを取得
+- `calculate_stats`: IVから順計算
+- `reverse_iv`: 実機ステータスからIV候補を逆算
+
+`calculate_stats` と `reverse_iv` は構造化された結果をAIへ返すだけでなく、ページを開いている場合は対応するUIにも入力・結果を反映します。WebMCP APIが存在しないブラウザでは、通常のWebアプリとしてそのまま動作します。
+
+### Remote MCP
+
+公開サイトでは同一オリジンの次のエンドポイントをMCPクライアントから利用できます。
+
+```text
+https://yw1-iv.alec-ofc.com/mcp
+```
+
+ツールはWebMCPと同じ計算エンジン・入力検証を共有します。MCP `2026-07-28` のstateless HTTP形式を実装し、既存クライアント向けに `2025-11-25` の `initialize` / `tools/list` / `tools/call` も受け付けます。
+
+補助的な発見用メタデータとして次も返します。
+
+```text
+https://yw1-iv.alec-ofc.com/.well-known/mcp.json
+```
+
+この `.well-known` ファイルはMCPコアプロトコルそのものではなく、サイトからMCPエンドポイントを見つけやすくするための補助メタデータです。
+
 ## ローカルで動かす
 
 Node.js環境で次を実行します。
