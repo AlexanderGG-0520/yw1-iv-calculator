@@ -5,7 +5,7 @@ import { Worker } from "node:worker_threads";
 import { AGENT_TOOL_DEFINITIONS, executeAgentTool } from "../src/agentTools";
 import { BoundedRateLimiter, clientIp } from "./safety";
 
-const PORT = Number(process.env.PORT ?? "8080");
+const PORT = Number(process.env.PORT ?? "80");
 const STATIC_ROOT = resolve(process.env.STATIC_ROOT ?? "/app/dist");
 const TRUST_CF_CONNECTING_IP = process.env.TRUST_CF_CONNECTING_IP === "true";
 const SERVER_INFO = { name: "yw1-iv-calculator", version: "0.1.0" };
