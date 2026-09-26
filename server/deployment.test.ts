@@ -8,6 +8,9 @@ describe("GitOps staged runtime migration", () => {
     const manifest = await readFile("infra/kubernetes/app.yaml", "utf8");
     expect(manifest).toContain("containerPort: 80");
     expect(manifest).not.toContain("containerPort: 8080");
+    // The currently pinned nginx image still starts as root, so new-image-only
+    // pod security settings must not land before the image pin changes.
+    expect(manifest).not.toContain("runAsNonRoot: true");
   });
 
   it("does not enable unverified Cloudflare client-IP header trust in the manifest", async () => {
