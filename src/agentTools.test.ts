@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  AGENT_TOOL_DEFINITIONS,
   calculateStatsTool,
   executeAgentTool,
   reverseIvTool,
@@ -34,6 +35,30 @@ describe("agent tools", () => {
         ivB1: { ...balancedB1, hp: 3 },
       }),
     ).toThrow(/total exactly 10/);
+  });
+
+  it("rejects calculate_stats IV_B_2 values above 15 and publishes the same schema bound", () => {
+    const input = {
+      speciesId: "jibanyan",
+      level: 20,
+      ivA: zero,
+      ivB1: balancedB1,
+      ivB2: { ...zero, hp: 16 },
+      personalityMode: "none" as const,
+    };
+
+    expect(() => calculateStatsTool(input)).toThrow(/ivB2\.hp.*0 to 15/);
+
+    const calculateTool = AGENT_TOOL_DEFINITIONS.find(
+      (tool) => tool.name === "calculate_stats",
+    );
+    const properties = calculateTool?.inputSchema.properties as
+      | Record<string, unknown>
+      | undefined;
+    const ivB2 = properties?.ivB2 as
+      | { properties?: Record<string, { maximum?: number }> }
+      | undefined;
+    expect(ivB2?.properties?.hp?.maximum).toBe(15);
   });
 
   it("reverse_iv round-trips a forward-calculated candidate", () => {
