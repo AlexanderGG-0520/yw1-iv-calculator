@@ -12,8 +12,18 @@ describe("MCP server safety helpers", () => {
           "x-forwarded-for": "198.51.100.250",
         },
         socket: { remoteAddress: "10.0.0.4" },
-      }),
+      }, true),
     ).toBe("203.0.113.10");
+
+    expect(
+      clientIp({
+        headers: {
+          "cf-connecting-ip": "203.0.113.10",
+          "x-forwarded-for": "198.51.100.250",
+        },
+        socket: { remoteAddress: "10.0.0.4" },
+      }),
+    ).toBe("10.0.0.4");
 
     expect(
       clientIp({
@@ -28,7 +38,7 @@ describe("MCP server safety helpers", () => {
       clientIp({
         headers: { "cf-connecting-ip": "not-an-ip" },
         socket: { remoteAddress: "2001:db8::10" },
-      }),
+      }, true),
     ).toBe("2001:db8::10");
   });
 
