@@ -71,13 +71,18 @@ function validIpHeader(value: unknown): string | undefined {
   return isIP(candidate) ? candidate : undefined;
 }
 
-export function clientIp(req: {
-  headers: Record<string, unknown>;
-  socket: { remoteAddress?: string | null };
-}): string {
-  const cloudflareIp = validIpHeader(req.headers["cf-connecting-ip"]);
-  if (cloudflareIp) {
-    return cloudflareIp;
+export function clientIp(
+  req: {
+    headers: Record<string, unknown>;
+    socket: { remoteAddress?: string | null };
+  },
+  trustCloudflareHeader = false,
+): string {
+  if (trustCloudflareHeader) {
+    const cloudflareIp = validIpHeader(req.headers["cf-connecting-ip"]);
+    if (cloudflareIp) {
+      return cloudflareIp;
+    }
   }
 
   const socketIp = validIpHeader(req.socket.remoteAddress);
