@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { ArrowDownUp, Copy, Search } from "lucide-react";
 import type { WorkerResponse } from "./workers/reverseSearch.worker";
@@ -8,6 +8,7 @@ import { BUILT_IN_SCORE_PROFILES, formatScoreWeights, hasAnyScoreWeight, resolve
 import { STAT_KEYS, type PersonalityMode, type ReverseResult, type ScorePreset, type SearchInput, type SearchResponse, type StatBlock, type StatKey } from "./engine/types";
 import { YOKAI } from "./engine/yokaiData";
 import { sourceCharacteristicBonus, togenyanPortedEngine } from "./engine/calculationEngine";
+import { registerWebMcpTools } from "./webmcp";
 
 type SortKey = "score" | StatKey;
 type SortDirection = "asc" | "desc";
@@ -85,6 +86,44 @@ function App() {
   const [forwardIvA, setForwardIvA] = useState<StatBlock>(defaultForwardIvA);
   const [forwardB1, setForwardB1] = useState<StatBlock>(defaultForwardB1);
   const [forwardB2, setForwardB2] = useState<StatBlock>(defaultForwardB2);
+
+  useEffect(
+    () =>
+      registerWebMcpTools({
+        showForward(result) {
+          const input = result.input;
+          setForwardSpeciesId(input.speciesId);
+          setForwardLevel(input.level);
+          setForwardIvA(input.ivA);
+          setForwardB1(input.ivB1);
+          setForwardB2(input.ivB2);
+          setForwardPersonalitySelection(input.personalityBonus ? "custom" : input.personalityMode);
+          setForwardCustomBonus(input.personalityBonus ?? emptyStats());
+        },
+        showReverse(result) {
+          const input = result.input;
+          workerRef.current?.terminate();
+          workerRef.current = null;
+          setIsSearching(false);
+          setYokaiFilter("");
+          setSpeciesId(input.speciesId);
+          setLevel(input.level);
+          setObserved(input.observed);
+          setPersonalitySelection(input.personalityBonus ? "custom" : input.personalityMode);
+          setCustomBonus(input.personalityBonus ?? emptyStats());
+          setEvolutionCountUnknown(input.evolutionCount === "unknown");
+          if (input.evolutionCount !== "unknown") {
+            setKnownEvolutionCount(input.evolutionCount);
+          }
+          setScorePreset(input.scorePreset);
+          setCustomScoreWeights(input.customScoreWeights ?? defaultCustomScoreWeights);
+          setResponse(result.response);
+          setError(null);
+          setShowAll(false);
+        },
+      }),
+    [],
+  );
 
   const selectedSpecies = useMemo(() => YOKAI.find((species) => species.id === speciesId) ?? YOKAI[0], [speciesId]);
   const activeScoreProfile = useMemo(() => resolveScoreProfile(scorePreset, customScoreWeights), [customScoreWeights, scorePreset]);
